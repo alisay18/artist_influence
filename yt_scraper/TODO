@@ -1,3 +1,12 @@
 # Todo List for YT Scraper
 # Ensure the location works correctly when making YouTube API calls.
 
+#UPDATED** TODO List for YT Scraper 5/20 
+# Scraper locations work, but emails continue to duplicate (some cities overlap which is fine) and getting low quality data.
+# Added timedelta to only get videos uploaded from the past 24 hours, not sure if this is working but don't think it is. A lot of old accounts were being added
+  to the CSVs and they hadn't uploaded in years.
+# Added relevanceLanguage="en" because we were getting results that were not english. Don't think this is working either.
+# Need to add rotating keys to get all the cities in one run (currently on 1 key).
+# Find a way to specify channel type. channelType is currently "any" and "music" didn't work. We've been getting videos that are not music related.
+# Create another scraper that is query based without location and scrape a channel with out an email. Trying to get the best results possible, will have interns
+  look for missing emails.
