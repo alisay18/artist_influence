@@ -2,15 +2,16 @@ import json
 import boto3
 import ytscraper
 
-print('Loading function')
+print("Loading function")
 
-s3 = boto3.client('s3')
+s3 = boto3.client("s3")
 
-# The handler expects these event keys to be set in the triggering 
+
+# The handler expects these event keys to be set in the triggering
 # event (api_keys, query, max_pages)
 # Optional event keys: location, location_radius, max_results, disable_https
 def lambda_handler(event, context):
-    payload = event['body']
+    payload = event["body"]
     print(payload)
     if "api_keys" not in payload:
         raise ValueError("api_keys not in payload")
@@ -29,8 +30,26 @@ def lambda_handler(event, context):
         payload["disable_https"] = False
 
     print("Scraping youtube with payload: " + json.dumps(payload, indent=2))
-    ytscraper.scrape_yt(payload["api_keys"], payload["max_pages"], payload["max_results"], payload["location"], payload["location_radius"], payload["query"], payload["disable_https"])
+    ytscraper.scrape_yt(
+        payload["api_keys"],
+        payload["max_pages"],
+        payload["max_results"],
+        payload["location"],
+        payload["location_radius"],
+        payload["query"],
+        payload["disable_https"],
+    )
 
 
 if __name__ == "__main__":
-    lambda_handler({"body": {"api_keys": "YOUR_API_KEY", "query": "official music video", "max_pages": 1, "location":'tokyo'}}, None)
+    lambda_handler(
+        {
+            "body": {
+                "api_keys": "YOUR_API_KEY",
+                "query": "official music video",
+                "max_pages": 1,
+                "location": "tokyo",
+            }
+        },
+        None,
+    )
