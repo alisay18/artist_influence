@@ -304,7 +304,7 @@ def main():
         # Send email with the generated CSV file
         csv_filename = f"{city}.csv"
         attachment_path = f"{city}.csv"
-    #   send_email_with_attachment("jared@artistinfluence.com", attachment_path, csv_filename)
+        send_email_with_attachment("jared@artistinfluence.com", attachment_path, csv_filename)
 
 
 if __name__ == "__main__":
