@@ -32,20 +32,7 @@ class RatioCalculator:
             return likes, comments, views
         else:
             return None, None, None
-
-    def drip_engagement(self, video_url, comments, api_url="https://jingle-smm-api.com/drip" ):
-        """_summary_
-
-        Args:
-            video_url (_type_): _description_
-            comments (_type_): _description_
-        """
-        for comment in comments:
-            response = requests.post(api_url, data={"video_url": video_url, "likes": 1, "comment": comment})
-            if response.status_code != 200:
-                print(f"Failed to post engagement for {video_url}")
-            time.sleep(1)
-
+        
     @staticmethod
     def calculate_ratio(likes, comments):
         """_summary_
@@ -62,7 +49,7 @@ class RatioCalculator:
         return likes / comments
 
 if __name__ == '__main__':
-    API_KEY = os.getenv('YOUTUBE_LIKES_COMMENTS_KEY')
+    API_KEY = os.getenv('YOUTUBE_API_KEY')
     VIDEO_ID = 'f4eDOMk4ef0'
     
     calculator = RatioCalculator(API_KEY, VIDEO_ID)

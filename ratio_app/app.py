@@ -1,44 +1,92 @@
 import threading
-from flask import Flask, request, render_template, redirect, url_for, send_file
-import pandas as pd
 import time
-import ratio_calculator as rc
+import os
+
+from flask import Flask, request, render_template, redirect, url_for, send_file, session
+import pandas as pd
+from dotenv import load_dotenv
+
+from .jingle_smm import JingleSMM
+from .ratio_calculator import RatioCalculator
+
+load_dotenv()
+API_KEY = os.getenv('YOUTUBE_API_KEY')
 
 app = Flask(__name__, template_folder='templates')
+app.secret_key = 'your_secret_key'  # You should use a secure and random secret key for production
 campaigns = pd.DataFrame(columns=['URL', 'Genre', 'Views', 'Comments', 'Likes', 'Status', 'Views_Generated', 'Likes_Generated', 'Comments_Generated'])
 running = True
 
 def load_csv(file_path):
     return pd.read_csv(file_path)
 
-def process_campaign():
-    global running
-    while running:
-        for index, row in campaigns.iterrows():
-            if row['Status'] == 'Active':
-                stats = rc.get_video_details(row['URL'])
-                views = stats['views']
-                expected_likes = views * 0.1  # Example ratio
-                expected_comments = views * 0.02  # Example ratio
-                likes_needed = max(0, int(expected_likes - row['Likes']))
-                comments_needed = max(0, int(expected_comments - row['Comments']))
-                comments = row['Comments'].split(';')
-                rc.drip_engagement(row['URL'], likes_needed, comments_needed, comments[:comments_needed])
-                campaigns.at[index, 'Likes_Generated'] += likes_needed
-                campaigns.at[index, 'Comments_Generated'] += comments_needed
-        time.sleep(3600)
+def process_campaign(comments, video_id, service=1751):
+        api = JingleSMM()
 
-@app.route('/')
+        # Add order
+        order = api.order(
+            {
+                "service": service,
+                "link": f"https://www.youtube.com/watch?v={video_id}",
+                "comments": comments
+            }
+        )
+        print(order,'order')
+        if "error" in order:
+            print("Error: " + order["error"])
+        else:
+            print(order)
+        # Check order status
+        status = api.status(order["order"])
+
+        return status, order["order"]
+
+
+# Helper function to process video details
+def get_video_details(video_id):
+    print(API_KEY)
+    rc = RatioCalculator(API_KEY, video_id=video_id)
+    likes, comments, views = rc.get_video_details()
+    ratio = rc.calculate_ratio(likes, comments)
+    return likes, comments, views, ratio
+
+@app.route('/',  methods=["GET", "POST"])
 def index():
-    return render_template('index.html', tables=[campaigns.to_html(classes='data', header="true")])
+    if request.method == 'POST':
+        video_id = request.form['YTlink']
+        likes, _, views, ratio = get_video_details(video_id)
+        session['video_id'] = video_id
+        session['likes'] = likes
+        session['views'] = views
+        session['ratio'] = ratio
+        return render_template(
+            'index2.html',
+            video_id=video_id,
+            likes=likes,
+            views=views,
+            ratio=ratio
+        )
+        
+    return render_template('index2.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    file = request.files['file']
-    global campaigns
+    file = request.files['comments']
     new_data = load_csv(file)
-    campaigns = pd.concat([campaigns, new_data], ignore_index=True)
-    return redirect(url_for('index'))
+     # Convert the DataFrame to a string with rows separated by '\n'
+    df_string = new_data.to_string(index=False)
+
+    # Optional: Add newline characters between rows
+    comments = '\n'.join(df_string.split('\n'))
+    session['comments'] = comments
+    return render_template(
+            'index2.html',
+            video_id=session['video_id'],
+            likes=session['likes'],
+            comments=comments,
+            views=session['views'],
+            ratio=session['ratio']
+        )
 
 @app.route('/start_campaign/<int:campaign_id>')
 def start_campaign(campaign_id):
@@ -63,11 +111,9 @@ def stop():
 
 @app.route('/start')
 def start():
-    global running
-    running = True
-    threading.Thread(target=process_campaign).start()
-    return redirect(url_for('index'))
-
+    threading.Thread(target=process_campaign(session['comments'],session["video_id"])).start()
+    return render_template('index2.html')
+    
 if __name__ == "__main__":
     threading.Thread(target=process_campaign).start()
     app.run(debug=True)
