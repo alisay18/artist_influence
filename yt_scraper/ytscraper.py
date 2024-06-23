@@ -170,10 +170,12 @@ def scrape_yt(
             # channel description
             channel_description = channel_response["items"][0]["snippet"]["description"]
             # strip out new lines and commas
-            channel_description = channel_description.replace("\n", " ").replace(",", " ")
-            
+            channel_description = channel_description.replace("\n", " ").replace(
+                ",", " "
+            )
+
             # strip multiple spaces
-            channel_description = re.sub(' +', ' ', channel_description)
+            channel_description = re.sub(" +", " ", channel_description)
 
             # strip tabs
             channel_description = channel_description.replace("\t", " ")
@@ -184,7 +186,6 @@ def scrape_yt(
             # remove any commas
             channel_description = channel_description.replace(",", " ")
 
-
             # get the video description
             video_description = channel_response["items"][0]["snippet"]["description"]
 
@@ -192,11 +193,12 @@ def scrape_yt(
             video_description = video_description.replace("\n", " ").replace(",", " ")
 
             # strip multiple spaces
-            video_description = re.sub(' +', ' ', video_description)
+            video_description = re.sub(" +", " ", video_description)
 
             # remove ascii characters
-            video_description =video_description.encode('ascii', 'ignore').decode('ascii')
-        
+            video_description = video_description.encode("ascii", "ignore").decode(
+                "ascii"
+            )
 
             # strip tabs
             video_description = video_description.replace("\t", " ")
@@ -204,7 +206,7 @@ def scrape_yt(
             # strip new paragraphs
             video_description = video_description.replace("\r", " ")
 
-            video_title = item['snippet']['title']
+            video_title = item["snippet"]["title"]
             # strip out new lines and commas
             video_title = video_title.replace("\n", " ").replace(",", " ")
             if matches:
@@ -304,7 +306,9 @@ def main():
         # Send email with the generated CSV file
         csv_filename = f"{city}.csv"
         attachment_path = f"{city}.csv"
-        send_email_with_attachment("jared@artistinfluence.com", attachment_path, csv_filename)
+        send_email_with_attachment(
+            "jared@artistinfluence.com", attachment_path, csv_filename
+        )
 
 
 if __name__ == "__main__":
