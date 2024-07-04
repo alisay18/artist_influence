@@ -1,15 +1,18 @@
-import threading
-import time
+# Copyright (c) 2024, Artist Influence Development Team
+# All rights reserved.
+
 import os
 import sys
+import threading
+import time
 
-from flask import Flask, request, render_template, redirect, url_for, send_file, session
 import pandas as pd
 from dotenv import load_dotenv
-
+from flask import (Flask, redirect, render_template, request, send_file,
+                   session, url_for)
 from jingle_smm import JingleSMM
-from ratio_calculator import RatioCalculator
 
+from ratio_app.campaign import RatioCalculator
 
 load_dotenv()
 API_KEY = os.getenv("YOUTUBE_API_KEY")

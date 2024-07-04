@@ -1,4 +1,8 @@
+# Copyright (c) 2024, Artist Influence Development Team
+# All rights reserved.
+
 import json
+
 import boto3
 import ytscraper
 

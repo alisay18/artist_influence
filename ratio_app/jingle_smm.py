@@ -1,22 +1,22 @@
+# Copyright (c) 2024, Artist Influence Development Team
+# All rights reserved.
+
 import os
-import requests
 import time
-from dotenv import load_dotenv
+
 import numpy as np
+import requests
+from dotenv import load_dotenv
 from pymongo.mongo_client import MongoClient
 
 load_dotenv()
 
 
-class JingleSMM:
-    def __init__(self, api_key=os.getenv("JINGLE_SMM_KEY")):
-        self.api_url = "https://jinglesmm.com/api/v2"
-        self.api_key = api_key
-        self.mongo_uri = os.getenv("MONGO_URI")
-
-    def _connect_mongo(self):
+class MongoDB:
+    @staticmethod
+    def connect_mongo(uri = os.getenv("MONGO_URI")):
         # Create a new client and connect to the server
-        client = MongoClient(self.uri)
+        client = MongoClient(uri)
 
         # Send a ping to confirm a successful connection
         try:
@@ -26,7 +26,13 @@ class JingleSMM:
             print(e)
 
         # use a database named "myDatabase"
-        return client.jingleSMM
+        return client
+
+
+class JingleSMM:
+    def __init__(self, api_key=os.getenv("JINGLE_SMM_KEY")):
+        self.api_url = "https://jinglesmm.com/api/v2"
+        self.api_key = api_key
 
     def drip_engagement(self, video_url, comments):
         """This function will post engagement to the API
@@ -47,11 +53,13 @@ class JingleSMM:
     def order(self, data):
         post = {"key": self.api_key, "action": "add", **data}
         response = self.connect(post)
+        self._update_comments_db(response)
         return response
 
     def _update_comments_db(self, response):
         # Add order to MongoDB
-        db = self._connect_mongo()
+        db = MongoDB().connect_mongo()
+        db = db.jingle_smm
         orders = db.orders
         # Get the order status
         order_status = self.status(response["order"])
@@ -145,25 +153,6 @@ class JingleSMM:
             }
         )
 
-    def get_video_views(self):
-        # This method should return the number of views on the video
-        # Replace with actual implementation
-        return 1000  # Example value
-
-    def _create_campaign_db(self, data):
-        # This method should update the campaign database with the provided data
-        # Replace with actual implementation
-        pass
-
-    def _update_comments_db(self, orders):
-        # This method should update the comments database with the orders
-        # Replace with actual implementation
-        pass
-
-    def _update_likes_db(self, orders):
-        # This method should update the likes database with the orders
-        # Replace with actual implementation
-        pass
 
     def create_drip_campaign(self, data, *args, verbose=False):
         """Creates a drippable campaign which splices and stores comments in batch size NUM_COMMENTS
@@ -224,8 +213,9 @@ class JingleSMM:
         for hour, comment_batch in enumerate(comments):
             print(f"Submitting batch for hour {hour + 1}")
             self.drip_engagement(video_id, comment_batch)
-            time.sleep(3600+np.random.random(400, 900))  # Sleep for 1 hour with some variance before submitting the next batch
-
+            time.sleep(
+                3600 + np.random.random(400, 900)
+            )  # Sleep for 1 hour with some variance before submitting the next batch
 
     def connect(self, post):
         response = requests.post(self.api_url, data=post)
@@ -283,5 +273,3 @@ if __name__ == "__main__":
     #     print("Status: " + status["status"])
 
     # print("Balance: " + balance["balance"])
-
-    api
