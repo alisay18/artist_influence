@@ -8,8 +8,7 @@ import time
 
 import pandas as pd
 from dotenv import load_dotenv
-from flask import (Flask, redirect, render_template, request, send_file,
-                   session, url_for)
+from flask import Flask, redirect, render_template, request, send_file, session, url_for
 from jingle_smm import JingleSMM
 
 from ratio_app.campaign import RatioCalculator

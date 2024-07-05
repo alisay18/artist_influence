@@ -3,6 +3,7 @@
 
 import os
 import time
+import random
 
 import numpy as np
 import pandas as pd
@@ -10,11 +11,14 @@ import logging as log
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from jingle_smm import JingleSMM, MongoDB
+from datetime import datetime
+
 
 load_dotenv()
 
 logger = log.getLogger(__name__)
 logger.setLevel(log.INFO)
+
 
 class RatioCalculator:
     def __init__(self, api_key, video_id):
@@ -22,14 +26,20 @@ class RatioCalculator:
         self.video_id = video_id
         self.video_details = None
         self.music_gsheet = "https://docs.google.com/spreadsheets/d/1k9A8viP4gFGjEwexNeLN6tmZyZ6YJIS_Ax6PxHjJvy8"
-    
+
     @staticmethod
-    def load_data(file_path: str):
-        df = pd.read_csv(
-            file_path,
-            # Set first column as rownames in data frame
-            index_col=0,
-        )
+    def load_data(file_path: str, dtype: dict = None):
+        try:
+            df = pd.read_csv(
+                file_path,
+                # Set first column as rownames in data frame
+                index_col=0,
+                # Set the data types of the columns
+                dtype=dtype,
+            )
+        except Exception as e:
+            print(f"Failed to load data from {file_path}")
+            raise e
         print(df.head())
         return df
 
@@ -56,7 +66,7 @@ class RatioCalculator:
         else:
             return None, None, None
 
-    def calculate_ratio(self, genre, metric):
+    def calculate_ratio(self, metric, views_arr, df):
         """_summary_
 
         Args:
@@ -66,35 +76,50 @@ class RatioCalculator:
         Returns:
             _type_: _description_
         """
-        # To calculate the ratio we get the video details and genre
-        df = self.load_data(self.music_gsheet+'/export?gid=1801952771&format=csv')
-        # Get the genre ratio
-        genre_ratio = df[df["genre"] == genre]
         # Create approximative polynomial of the requested metric vs ratio
         # We take the log of the views based on analysis revealing a logarithmic relationship between metrics vs views
-        ratio = np.polyfit(np.log(genre_ratio["#views"]), genre_ratio[metric], 2)
-        # Check the accuracy of the polynomial
-        ratio_error = (
-            np.polyval(np.log(genre_ratio[metric]), ratio) - genre_ratio[metric]
+        ratio_eq = np.polyfit(
+            np.log(np.array(views_arr)), np.log(np.array(df[metric])), 1
         )
-        # If the error is too high we need to increase the degree of the polynomial
-        if np.mean(ratio_error) > 0.1:
-            ratio = np.polyfit(np.log(genre_ratio[metric]), genre_ratio[metric], 3)
+        # Check the accuracy of the polynomial
+        ratio_error = 1 - np.sum(
+            (np.polyval(ratio_eq, np.log(views_arr)) - np.log(df[metric])) ** 2
+        ) / np.sum((np.log(df[metric]) - np.mean(np.log(df[metric]))) ** 2)
+        # If the error is too high we need to increase the degree of the polynomial for now.
+        if ratio_error < 0.80:
+            ratio_eq = np.polyfit(np.log(views_arr), np.log(df[metric]), 3)
+        # return the polynomial
+        return np.poly1d(ratio_eq)
 
-        # Then we find the ratio for the current video
-        ratio = np.polyval(ratio, views)
+    def calculate_views_likes(self, genre, desired_views=None):
+        # To calculate the ratio we get the video details and genre
+        df = self.load_data(
+            self.music_gsheet + "/export?gid=1801952771&format=csv",
+            {
+                "#views": "int",
+                "#likes": "int",
+                "#comments": "int",
+                "views": "int",
+                "likes": "int",
+                "comments": "int",
+                "genre": "str",
+                "like:view": "float",
+                "comment:view": "float",
+            },
+        )
+        # Get the genre ratio
+        genre_splice = df[df["genre"] == genre]
+        comments_to_views_ratio = self.calculate_ratio(
+            "#comments", genre_splice["#views"], genre_splice
+        )
+        likes_to_views_ratio = self.calculate_ratio(
+            "#likes", genre_splice["#views"], genre_splice
+        )
 
-        # Apply some pseudo random noise to the ratio 
-        ratio = ratio + np.random.Generator.random() / 1000
-        return ratio
-
-    def calculate_views_likes(self, genre):
-        comments_to_views_ratio = self.calculate_ratio(genre, "comments")
-        likes_to_views_ratio = self.calculate_ratio(genre, "likes")
         # Multiply the views by the ratio to get the number of comments and likes
-        views = self.video_details["views"]
-        comments = views * comments_to_views_ratio
-        likes = views * likes_to_views_ratio
+        views = self.video_details["views"] + desired_views
+        comments = np.e ** (comments_to_views_ratio(np.log(views)))
+        likes = np.e ** (likes_to_views_ratio(np.log(views)))
         return comments, likes
 
 
@@ -105,7 +130,6 @@ class Campaign:
         self.video_id = data["video_id"]
         self.genre = data["genre"]
         self.comments = data["comments"]
-        self.order_duration = data["order"]["duration"]
         self.current_comments = data["order"]["video"]["current_comments"]
         self.ratio_calculator = RatioCalculator(self.video_id)
         self.views = self.get_video_views()
@@ -118,72 +142,69 @@ class Campaign:
     def get_video_views(self):
         return self.ratio_calculator.get_video_details(self.video_id)[2]
 
-    def _create_campaign_db(self, data):
-        # This method should update the campaign database with the provided data
-        # Replace with actual implementation
-        for i, comment in enumerate(self.split_comments):
-            batch_index = i % self.order_duration
-            self.comment_batches[batch_index].append(comment)
-
-    def _update_comments_db(self, comments, campaignId):
-        client  = MongoDB().connect_mongo()
-        comments_db = client.comments
-
-        # check if comments length is greater than 300
-        if (len(comments) > 300):
-            # split the comments array into batches of 150 and update
-            while len(comments) > 0:
-                
-                # shrink the
-                comments = comments.sp
-        else:
-            comments_db.insert_one({
-                    id: campaignId,
-                    comments: comments,
-            })
-        
+    @property
+    def get_video_comments(self):
+        return self.ratio_calculator.get_video_details(self.video_id)[1]
     
-    def _update_likes_db(self, orders):
-        # This method should update the likes database with the orders
-        # Replace with actual implementation
-        client  = MongoDB().connect_mongo()
-        campaign_db = client.campaign
-        # check if the campaign db exists
-        campaign =  campaign_db.find({
-            id: orders.id
-        })
-        if campaign: 
-            campaign.desired_likes  = self.desired_likes
-            campaign.current_likes  = orders["likes"]
-        else:
-            campaign_db.insert_one({
-                id: orders["id"],
-                "desired_likes": self.desired_likes,
-                "current_likes": orders["likes"]
-            })
-    
-        
+    @property
+    def get_video_likes(self):
+        return self.ratio_calculator.get_video_details(self.video_id)[0]
 
+    def _update_comments_db(self, split_comments, NUM_COMMENTS=50,campaign_id=None):
+        client = MongoDB().connect_mongo()
+        # Calculate the number of comments per hour
+        num_comment_arrays = int(np.floor(len(split_comments) / NUM_COMMENTS))
+        # create an array to hold the batches
+        def pop_first_n_strings(lst, n):
+            # Extract the first n elements
+            popped_elements = lst[:n]
+            # Delete the first n elements from the original list
+            del lst[:n]
+            return popped_elements
+        # Create a list to hold the batches
+        comment_batches = []
+        # Pop the first NUM_COMMENTS comments into a mongoDB collection
+        for _ in range(num_comment_arrays):
+            comment_batches.append(pop_first_n_strings(split_comments, NUM_COMMENTS))
+        # Add the remaining comments to the last batch
+        comment_batches.append(split_comments)
+        # Create a collection to hold the comments
+        comments = client.comments
+        # Insert the comments into the collection
+        comments.insert_many(
+            [
+                {
+                    "video_id": self.video_id,
+                    "comment": comment,
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                    "campaign_id": campaign_id,
+                    "order": idx
+                }
+                for idx, comment in enumerate(comment_batches[0])
+            ]
+        )
+        # Read in the comments and pop the first NUM_COMMENTS comments into a mongoDB collection
+        client.close()
+        return comment_batches
 
-    def run(self):
-        self.comment_batches = self.create_drip_campaign(self.data)
+    def run(self, desired_views):
+        comments, new_campaign, campaign_id = self.create_drip_campaign(desired_views)
         logger.info("Running campaign")
-        while (self.current_comments < self.desired_comments) or (
-            self.current_likes < self.desired_likes
-        ):
-            if self.current_comments < self.desired_comments:
-                self.api.order(
+        idx = new_campaign.order
+        for batch_index, comment in enumerate(comments):
+            self.api.order(
                     {
                         "service": 1751,
                         "link": f"https://www.youtube.com/watch?v={self.video_id}",
-                        "comments": self.comment_batches
+                        "comments": comment
                     }
-                )
+            )
             if self.current_likes < self.desired_likes:
                 self.api.order(
                     {
                         "service": 1751,
-                        "link": f"https://www.youtube.com/watch?v={self.video_id}"
+                        "link": f"https://www.youtube.com/watch?v={self.video_id}",
                     }
                 )
             # Update the comments database
@@ -197,7 +218,7 @@ class Campaign:
             # get approximative usage for that time (peak usage ie has less wait_time)
             time.sleep(self.wait_time)
 
-    def create_drip_campaign(self, data, *args, verbose=False):
+    def create_drip_campaign(self, desired_views, NUM_COMMENTS=50):
         """Creates a drippable campaign which splices and stores comments in batch size NUM_COMMENTS
         and stores them to be ordered over a set time interval via a cronjob.
         Args:
@@ -207,33 +228,59 @@ class Campaign:
         """
         # Determine the number of orders necessary
         views = self.get_video_views()
-        order_duration = data["order"]["duration"]
-        split_comments = data["comments"].split("\r\n")
-        current_comments = data["order"]["video"]["current_comments"]        
-        self.desired_comments = self.ratio_calculator.calculate_views_likes(self.genre)[
-            0
-        ]
-        self.desired_likes = self.ratio_calculator.calculate_views_likes(self.genre)[1]
+        split_comments = self.data["comments"].split("\r\n")
+        current_comments = self.data["order"]["video"]["current_comments"]
+        self.desired_comments, self.desired_likes = (
+            self.ratio_calculator.calculate_views_likes(self.genre, desired_views=desired_views)
+        )
         if len(split_comments) + len(current_comments) < self.desired_comments:
-            return "You need more comments"
-        # Calculate the number of comments per hour
-        num_comment_arrays = int(np.floor(len(split_comments) / order_duration))
-        # Initialize an array to hold the batches
+            # hack to add more comments
+            # get the difference between the desired comments and the current comments
+            diff = np.abs(self.desired_comments - len(split_comments))
+            # set the number of comments to be added
+            self.desired_comments = len(current_comments) + diff
+        def get_unique_campaign_id():
+            while True:
+                new_id = random.randint(10000, 99999)
+                if not campaign.find_one({"campaign_id": new_id}):
+                    return new_id
+
+        client = MongoDB().connect_mongo()
+        campaign = client.campaign
+        campaign.create_index("campaign_id", unique=True)
+        campaign_id = get_unique_campaign_id()
+        new_campaign = campaign.insert_one(
+            {
+                "video_id": self.video_id,
+                "desired_views": desired_views,
+                "desired_comments": self.desired_comments,
+                "desired_likes": self.desired_likes,
+                "current_comments": current_comments,
+                "current_likes": self.get_video_likes(),
+                "submitted_likes": 0,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                "campaign_id": campaign_id,
+                "order": 0           
+            }
+        )
+        comments = self._update_comments_db(split_comments, NUM_COMMENTS, campaign_id)
+        return comments, new_campaign, campaign_id
 
 
 
 
 if __name__ == "__main__":
     API_KEY = os.getenv("YOUTUBE_API_KEY")
-    VIDEO_ID = "f4eDOMk4ef0"
+    VIDEO_ID = "13MRiqPVmNs"
 
     calculator = RatioCalculator(API_KEY, VIDEO_ID)
     likes, comments, views = calculator.get_video_details()
     print(likes, comments, views)
     if likes is not None and comments is not None:
-        ratio = calculator.calculate_ratio(likes, comments)
-        print(
-            f"Likes: {likes}, Comments: {comments}, Views: {views}, Like-to-Comment Ratio: {ratio}"
-        )
+        comments_desired, likes_desired = calculator.calculate_views_likes("Hip Hop")
+        # print(
+        #     f"Likes: {likes}, Comments: {comments_desired}, Views: {likes_desired}"
+        # )
     else:
         print("Failed to retrieve video details")

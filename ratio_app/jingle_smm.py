@@ -14,7 +14,7 @@ load_dotenv()
 
 class MongoDB:
     @staticmethod
-    def connect_mongo(uri = os.getenv("MONGO_URI")):
+    def connect_mongo(uri=os.getenv("MONGO_URI")):
         # Create a new client and connect to the server
         client = MongoClient(uri)
 
@@ -152,7 +152,6 @@ class JingleSMM:
                 "action": "balance",
             }
         )
-
 
     def create_drip_campaign(self, data, *args, verbose=False):
         """Creates a drippable campaign which splices and stores comments in batch size NUM_COMMENTS
