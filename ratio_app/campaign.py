@@ -126,7 +126,7 @@ class RatioCalculator:
 
 
 class Campaign:
-    def __init__(self, data, wait_time=60):
+    def __init__(self, data, wait_time=3600):
         self.data = data
         self.api = JingleSMM()
         self.video_id = data["video_id"]
@@ -159,7 +159,6 @@ class Campaign:
                 {"comments": "str",
                 "video_link": "str"}
             )
-            print(comments.head())
             return comments
         else:
             return None
@@ -207,21 +206,19 @@ class Campaign:
         # logger.info("Running campaign")
         # idx = new_campaign.order
         # for batch_index, comment in enumerate(comments):
-        for _ in range(3):
+        for _ in range(20):
             # Get the desired number of comments 
             self.ratio_calculator.get_video_details()
             self.desired_comments, self.desired_likes = self.ratio_calculator.calculate_views_likes(self.genre, desired_views=desired_views)
-            print(self.desired_comments*desired_views, self.get_video_comments)
-            if (self.get_video_comments < self.desired_comments*desired_views):
+            print(f'Current comments: {self.get_video_comments}, Desired comments: {self.desired_comments}')
+            if (self.get_video_comments < self.desired_comments):
                 print("Ordering comments")
                 # Get self.desired_comments - self.current_comments
-                diff = np.abs(self.desired_comments - self.get_video_comments)
-                comments  = self.get_comments()
-                comments = comments.sample(n=int(diff) if diff > 5 else 6)
+                diff =np.floor(np.abs(self.desired_comments- self.get_video_comments)/100)
+                comments_db  = self.get_comments()
+                comments = comments_db.sample(n=int(diff) if diff > 5 else 6)
                 comment = "\r\n".join(comments.index)
                 # Order the comments
-                print(comment,'c    omment')
-                print(type(comment))
                 # strip commas 
 
                 response =  self.api.order(
@@ -231,6 +228,8 @@ class Campaign:
                             "comments": comment
                         }
                 )
+                # remove the comments from the database
+                comments_db.drop(comments.index)
                 print(response)
             # if self.current_likes < self.desired_likes:
             #     self.api.order(
@@ -304,7 +303,7 @@ class Campaign:
 
 if __name__ == "__main__":
     API_KEY = os.getenv("YOUTUBE_API_KEY")
-    VIDEO_ID = "wvL8h80v_xU"
+    VIDEO_ID = "AfSjnsYiY_A"
 
     calculator = RatioCalculator(API_KEY, VIDEO_ID)
     likes, comments, views = calculator.get_video_details()
@@ -319,7 +318,8 @@ if __name__ == "__main__":
                 
             }
         )
-        campaign.run(1000)
+        print("Running campaign with desired views", views)
+        campaign.run(views)
         # print(
         #     f"Likes: {likes}, Comments: {comments_desired}, Views: {likes_desired}"
         # )
