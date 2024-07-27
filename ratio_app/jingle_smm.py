@@ -51,7 +51,7 @@ class JingleSMM:
             time.sleep(1)
 
     def order(self, data):
-        print(data, 'data')
+        print(data, "data")
         post = {"key": self.api_key, "action": "add", **data}
         response = self.connect(post)
         # self._update_comments_db(response)

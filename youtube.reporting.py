@@ -14,6 +14,7 @@ import datetime
 
 api_key = os.getenv("operations_youtube_api_key")
 
+
 def get_video_details(api_key, video_id):
     """_summary_
 
@@ -40,20 +41,22 @@ def get_video_details(api_key, video_id):
     else:
         return None, None, None
 
+
 def load_data(file_path: str, dtype: dict = None):
-        try:
-            df = pd.read_csv(
-                file_path,
-                # Set first column as rownames in data frame
-                index_col=0,
-                # Set the data types of the columns
-                dtype=dtype,
-            )
-        except Exception as e:
-            print(f"Failed to load data from {file_path}")
-            raise e
-        print(df.head())
-        return df
+    try:
+        df = pd.read_csv(
+            file_path,
+            # Set first column as rownames in data frame
+            index_col=0,
+            # Set the data types of the columns
+            dtype=dtype,
+        )
+    except Exception as e:
+        print(f"Failed to load data from {file_path}")
+        raise e
+    print(df.head())
+    return df
+
 
 # Send Email
 def send_email(name, receiver_email, views, likes, comments, subscribers):
@@ -85,10 +88,11 @@ def send_email(name, receiver_email, views, likes, comments, subscribers):
     # Close SMTP server session
     server.quit()
 
-user_data = load_data(file_path = "example")
+
+user_data = load_data(file_path="example")
 
 for user in user_data:
-    # Parse user input 
+    # Parse user input
     video_id = user["Video ID"]
     likes, comments, views, subscribers = get_video_details(api_key, video_id)
     name = user["First Name"]

@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from flask import Flask, redirect, render_template, request, send_file, session, url_for
 from jingle_smm import JingleSMM
 
-from ratio_app.campaign import RatioCalculator
+from ratio_app.campaign import YoutubeRatioCalc
 
 load_dotenv()
 API_KEY = os.getenv("YOUTUBE_API_KEY")
@@ -64,8 +64,8 @@ def process_campaign(comments, video_id, service=1751):
 # Helper function to process video details
 def get_video_details(video_id):
     print(API_KEY)
-    rc = RatioCalculator(API_KEY, video_id=video_id)
-    likes, comments, views = rc.get_video_details()
+    rc = YoutubeRatioCalc(API_KEY, video_id=video_id)
+    likes, comments, views = rc.get_views_likes_cmnts()
     ratio = rc.calculate_ratio(likes, comments)
     return likes, comments, views, ratio
 
