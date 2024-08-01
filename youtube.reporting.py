@@ -2,18 +2,13 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import pyotp
-import google.auth
 import pandas as pd
 from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from google.ads.googleads.client import GoogleAdsClient
-from google.ads.googleads.errors import GoogleAdsException
 import datetime
 
 api_key = os.getenv("operations_youtube_api_key")
-
 
 def get_video_details(api_key, video_id):
     """_summary_
@@ -33,7 +28,7 @@ def get_video_details(api_key, video_id):
         subscribers = int(statistics.get("subscriberCount", "0"))
         # Set the video details
 
-        video_details = {"likes": likes, "comments": comments, "views": views}
+        video_details = {"likes": likes, "comments": comments, "views": views, "subcribers": subscribers}
         # Get genre
         print(response, video_details)
 
@@ -54,7 +49,7 @@ def load_data(file_path: str, dtype: dict = None):
     except Exception as e:
         print(f"Failed to load data from {file_path}")
         raise e
-    print(df.head())
+    # print(df.head())
     return df
 
 
@@ -68,13 +63,18 @@ def get_stats_seven_days_ago(self):
         end_date = now.strftime("%Y-%m-%d")
         start_date = seven_days_ago.strftime("%Y-%m-%d")
 
-        youtube = build("youtubeAnalytics", "v2", developerKey=self.api_key)
+        # Load credentials from the service account file
+        credentials = service_account.Credentials.from_service_account_file(
+            '/Users/alisayoung/Downloads/client_secret_287536687792-s2ra0es9o2k9lu6g461e02p272f6dgnq.apps.googleusercontent.com.json',
+            scopes=["https://www.googleapis.com/auth/yt-analytics.readonly"]
+        )
+        youtube = build("youtubeAnalytics", "v2", credentials=credentials)
         # Make the Analytics API request
         request = youtube.reports().query(
             ids=f"channel=={self.channel_id}",
             startDate=start_date,
             endDate=end_date,
-            metrics="views" "likes" "comments" "subcribers",
+            metrics=("views, likes, comments, subcribers"),
             dimensions="video",
             filters=f"video=={self.video_id}",
             sort="-views",
@@ -83,8 +83,17 @@ def get_stats_seven_days_ago(self):
 
         # Parse the response
         if response.get("rows"):
-            view_count = response["rows"][0][1]
-            return int(view_count)
+            row = response["rows"][0]
+            view_count = row[1]
+            likes = row[2]
+            comments = row[3]
+            subscribers = row[4]
+            return {
+                "views": int(view_count),
+                "likes": int(likes),
+                "comments": int(comments),
+                "subscribers": int(subscribers)
+            }
         else:
             print("No data found for the specified video and time range.")
             return None
@@ -124,12 +133,13 @@ def send_email(name, receiver_email, views, likes, comments, subscribers):
     # Close SMTP server session
     server.quit()
 
+user_data = load_data(file_path="https://docs.google.com/spreadsheets/d/e/2PACX-1vSE58fcG7zdT4C73RQfUnq76R48AwyvsjkfSEOUhQTmHMthQqc-iklMyPLDMrL5mrIqZBwXoIBVFKkW/pub?gid=799904628&single=true&output=csv")
 
-user_data = load_data(file_path="example")
-
-for user in user_data:
+for index,user in user_data.iterrows():
     # Parse user input
-    video_id = user["Video ID"]
+    print(user,"user")
+    video_id = user["Video ID 1"]
+    print(video_id)
     likes, comments, views, subscribers = get_video_details(api_key, video_id)
     name = user["First Name"]
     email = user["Email"]

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Manager</title>
+    <style>
+        table.data {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table.data th, table.data td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        table.data th {
+            background-color: #f2f2f2;
+        }
+        .button {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Campaign Manager</h1>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <label for="file">Upload CSV:</label>
+        <input type="file" id="file" name="file">
+        <button type="submit" class="button">Upload</button>
+    </form>
+    <form action="/start" method="get">
+        <button type="submit" class="button">Start Campaign</button>
+    </form>
+    <form action="/stop" method="get">
+        <button type="submit" class="button">Stop Campaign</button>
+    </form>
+    <form action="/export" method="get">
+        <button type="submit" class="button">Export CSV</button>
+    </form>
+    <h2>Campaigns</h2>
+    {{ tables|safe }}
+</body>
+</html>
