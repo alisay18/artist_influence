@@ -188,12 +188,12 @@ def stop_campaign(campaign_id):
     return redirect(url_for("index"))
 
 
-@app.route("/export")
+@app.route("/export_campaigns", methods=["GET"])
 def export():
     campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
-    campaigns_df.to_csv("campaigns_report.csv", index=False)
-    return send_file("campaigns_report.csv", as_attachment=True)
-
+    file_path = "campaigns_report.csv"
+    campaigns_df.to_csv(file_path, index=False)
+    return send_file(file_path, as_attachment=True)
 
 @app.route("/stop", methods=["POST"])
 def stop():
