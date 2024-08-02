@@ -5,7 +5,6 @@ from datetime import datetime
 
 import pandas as pd
 import requests
-import schedule
 from dotenv import load_dotenv
 from flask import Flask, redirect, render_template, request, send_file, url_for
 from googleapiclient.discovery import build

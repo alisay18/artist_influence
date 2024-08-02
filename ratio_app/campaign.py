@@ -174,7 +174,7 @@ class Campaign:
     def get_comments(self):
         if self.comments_sheet:
             comments = load_data(
-                self.comments_sheet + "/export?gid=0&format=csv",
+                self.comments_sheet + "/export?format=csv",
                 {"comments": "str", "video_link": "str"},
             )
             return comments

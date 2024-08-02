@@ -6,17 +6,8 @@ import uuid
 import pandas as pd
 from campaign import Campaign, YoutubeRatioCalc
 from dotenv import load_dotenv
-from flask import (
-    Flask,
-    flash,
-    redirect,
-    render_template,
-    request,
-    send_file,
-    send_from_directory,
-    session,
-    url_for,
-)
+from flask import (Flask, flash, redirect, render_template, request, send_file,
+                   send_from_directory, session, url_for)
 from jingle_smm import JingleSMM
 
 load_dotenv()
