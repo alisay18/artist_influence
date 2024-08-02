@@ -1,14 +1,16 @@
+import datetime
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
 import pandas as pd
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-import datetime
 
 api_key = os.getenv("operations_youtube_api_key")
+
 
 def get_video_details(api_key, video_id):
     """_summary_
@@ -28,7 +30,12 @@ def get_video_details(api_key, video_id):
         subscribers = int(statistics.get("subscriberCount", "0"))
         # Set the video details
 
-        video_details = {"likes": likes, "comments": comments, "views": views, "subcribers": subscribers}
+        video_details = {
+            "likes": likes,
+            "comments": comments,
+            "views": views,
+            "subcribers": subscribers,
+        }
         # Get genre
         print(response, video_details)
 
@@ -65,8 +72,8 @@ def get_stats_seven_days_ago(self):
 
         # Load credentials from the service account file
         credentials = service_account.Credentials.from_service_account_file(
-            '/Users/alisayoung/Downloads/client_secret_287536687792-s2ra0es9o2k9lu6g461e02p272f6dgnq.apps.googleusercontent.com.json',
-            scopes=["https://www.googleapis.com/auth/yt-analytics.readonly"]
+            "/Users/alisayoung/Downloads/client_secret_287536687792-s2ra0es9o2k9lu6g461e02p272f6dgnq.apps.googleusercontent.com.json",
+            scopes=["https://www.googleapis.com/auth/yt-analytics.readonly"],
         )
         youtube = build("youtubeAnalytics", "v2", credentials=credentials)
         # Make the Analytics API request
@@ -92,7 +99,7 @@ def get_stats_seven_days_ago(self):
                 "views": int(view_count),
                 "likes": int(likes),
                 "comments": int(comments),
-                "subscribers": int(subscribers)
+                "subscribers": int(subscribers),
             }
         else:
             print("No data found for the specified video and time range.")
@@ -133,11 +140,14 @@ def send_email(name, receiver_email, views, likes, comments, subscribers):
     # Close SMTP server session
     server.quit()
 
-user_data = load_data(file_path="https://docs.google.com/spreadsheets/d/e/2PACX-1vSE58fcG7zdT4C73RQfUnq76R48AwyvsjkfSEOUhQTmHMthQqc-iklMyPLDMrL5mrIqZBwXoIBVFKkW/pub?gid=799904628&single=true&output=csv")
 
-for index,user in user_data.iterrows():
+user_data = load_data(
+    file_path="https://docs.google.com/spreadsheets/d/e/2PACX-1vSE58fcG7zdT4C73RQfUnq76R48AwyvsjkfSEOUhQTmHMthQqc-iklMyPLDMrL5mrIqZBwXoIBVFKkW/pub?gid=799904628&single=true&output=csv"
+)
+
+for index, user in user_data.iterrows():
     # Parse user input
-    print(user,"user")
+    print(user, "user")
     video_id = user["Video ID 1"]
     print(video_id)
     likes, comments, views, subscribers = get_video_details(api_key, video_id)

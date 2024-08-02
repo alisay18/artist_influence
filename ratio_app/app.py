@@ -4,11 +4,19 @@ import threading
 import uuid
 
 import pandas as pd
-from dotenv import load_dotenv
-from flask import (Flask, flash, redirect, render_template, request, send_file,
-                   send_from_directory, session, url_for)
-
 from campaign import Campaign, YoutubeRatioCalc
+from dotenv import load_dotenv
+from flask import (
+    Flask,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    session,
+    url_for,
+)
 from jingle_smm import JingleSMM
 
 load_dotenv()
@@ -155,36 +163,42 @@ def create_campaign():
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])
 def start_campaign(campaign_id):
     campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
-    campaign_data = campaigns_df.loc[campaigns_df['Campaign ID'] == campaign_id].to_dict(orient='records')[0]
+    campaign_data = campaigns_df.loc[
+        campaigns_df["Campaign ID"] == campaign_id
+    ].to_dict(orient="records")[0]
     campaign_data["Status"] = "Running"
-    campaigns_df.loc[campaigns_df['Campaign ID'] == campaign_id, "Status"] = "Running"
+    campaigns_df.loc[campaigns_df["Campaign ID"] == campaign_id, "Status"] = "Running"
     session["campaigns"] = campaigns_df.to_json(orient="records")
-    
+
     # Restart the campaign
     campaign, _ = campaign_threads.get(campaign_id, (None, None))
     if campaign:
         campaign.stop_flag.clear()
-        campaign_thread = threading.Thread(target=campaign.run, args=(campaign.data["Views"],))
+        campaign_thread = threading.Thread(
+            target=campaign.run, args=(campaign.data["Views"],)
+        )
         campaign_thread.start()
         campaign_threads[campaign_id] = (campaign, campaign_thread)
-    
+
     return redirect(url_for("index"))
 
 
 @app.route("/stop_campaign/<campaign_id>", methods=["POST"])
 def stop_campaign(campaign_id):
     campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
-    campaign_data = campaigns_df.loc[campaigns_df['Campaign ID'] == campaign_id].to_dict(orient='records')[0]
+    campaign_data = campaigns_df.loc[
+        campaigns_df["Campaign ID"] == campaign_id
+    ].to_dict(orient="records")[0]
     campaign_data["Status"] = "Completed"
-    campaigns_df.loc[campaigns_df['Campaign ID'] == campaign_id, "Status"] = "Completed"
+    campaigns_df.loc[campaigns_df["Campaign ID"] == campaign_id, "Status"] = "Completed"
     session["campaigns"] = campaigns_df.to_json(orient="records")
-    
+
     # Stop the campaign
     campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
     if campaign:
         campaign.stop()
         campaign_thread.join()
-    
+
     return redirect(url_for("index"))
 
 
@@ -194,6 +208,7 @@ def export():
     file_path = "campaigns_report.csv"
     campaigns_df.to_csv(file_path, index=False)
     return send_file(file_path, as_attachment=True)
+
 
 @app.route("/stop", methods=["POST"])
 def stop():
@@ -207,7 +222,7 @@ def stop():
     campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
     campaigns_df["Status"] = "Completed"
     session["campaigns"] = campaigns_df.to_json(orient="records")
-    flash('All campaigns stopped!', 'success')
+    flash("All campaigns stopped!", "success")
     return redirect(url_for("index"))
 
 

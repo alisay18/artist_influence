@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
-
 from jingle_smm import JingleSMM
 
 # Load environment variables
@@ -172,7 +171,6 @@ class Campaign:
         self.wait_time = wait_time
         self.stop_flag = threading.Event()  # Add a stop flag
 
-
     def get_comments(self):
         if self.comments_sheet:
             comments = load_data(
@@ -188,7 +186,7 @@ class Campaign:
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "video_link"])
         view_last_hour = None
-        while not self.stop_flag.is_set():  
+        while not self.stop_flag.is_set():
             # Check the status of the campaign
             if self.data["Status"] != "Running":
                 logger.info(
@@ -249,10 +247,9 @@ class Campaign:
                 logger.info(f"Ordered comments: {response}")
             view_last_hour = self.ratio_calculator.views
             time.sleep(self.wait_time)
-    
+
     def stop(self):
         self.stop_flag.set()  # Set the stop flag to stop the thread
-
 
 
 if __name__ == "__main__":
