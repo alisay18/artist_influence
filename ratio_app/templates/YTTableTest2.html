@@ -1,116 +1,123 @@
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>YouTube Video Details</title>
-        <style>
-            body {
-                background-color: #000000;
-                color: #FFFFFF;
-                font-family: Arial, sans-serif;
-            }
-            .container {
-                margin: 20px;
-            }
-            .mt-5 {
-                margin-top: 20px;
-            }
-            input, button {
-                padding: 10px;
-                margin: 10px 0;
-                font-size: 16px;
-            }
-            table {
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='AI_Logo_2024--r.png') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <img src="{{ url_for('static', filename='AI_Logo_2024--r.png') }}" alt="Logo" style="width: 550px; height: auto;">  
+    <title>YouTube Video Details</title>
+    <style>
+        body {
+            background-color: #000000;
+            color: #FFFFFF;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            margin: 20px;
+        }
+        .mt-5 {
+            margin-top: 20px;
+        }
+        input, button, select {
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        table {
             border-collapse: collapse;
-            width: 50%;
-            }
-            
-            th, td {
+            width: 100%;
+        }
+        th, td {
             padding: 8px;
             text-align: left;
             border-bottom: 1px solid #DDD;
-            }
-            
-            tr:hover {background-color: #e2e2e289;}   
-        </style>
-    </head>
-    <body>
-    
-    <div class="container">
-        <h2>Enter YouTube Video URL</h2>
-        <input type="text" id="youtube-url" placeholder="Enter YouTube Video URL">
-        <button onclick="fetchYouTubeData()">Get Video Details</button>
-        <form action="/upload" method="post" enctype="multipart/form-data">
-            <h2> <label for="file">Upload Comments CSV</label> </h2>
-            <div class="form-group">
-              <input type="file" class="form-control-file" id="comments" name="comments" required>
-              <button type="submit" class="btn btn-primary">Submit</button>
+        }
+        tr:hover {
+            background-color: #e2e2e289;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <form method="POST" action="/create_campaign" class="mt-5">
+        <h2>Create Campaign</h2>
+        <div>
+            <label for="channel_id">Enter YouTube Video URL:</label>
+            <input type="text" id="youtube_url" name="youtube_url" required placeholder="Enter YouTube Video URL">
+        </div>
+        <div>
+            <label for="channel_id">Channel ID:</label>
+            <input type="text" id="channel_id" name="channel_id" required>
+        </div>
+        <div>
+            <label for="genre">Genre:</label>
+            <select id="genre" name="genre" required>
+                <option value="Hip Hop">Hip Hop</option>
+                <option value="Pop">Pop</option>
+                <option value="House">House</option>
+                <option value="Base">Base</option>
+            </select>
+        </div>
+        <div>
+            <label for="comments_sheet">Comments Sheet URL:</label>
+            <input type="text" id="comments_sheet" name="comments_sheet" required>
+        </div>
+        <div>
+            <label for="wait_time">Wait Time (seconds):</label>
+            <input type="number" id="wait_time" name="wait_time" required>
+        </div>
+        <button type="submit">Create Campaign</button>
+    </form>
+
+    <div class="row mt-5">
+        <div class="column">
+            <div>
+            <h2>Running Campaigns</h2>
+            <div class="actions">
+                <form method="POST" action="/stop" style="display: inline;">
+                    <button type="submit">Stop All Campaigns</button>
+                </form>
             </div>
-        </form>
-    
-        <div class="row">
-            <div class="column">
-                <h2>Campaigns</h2>
-                
-                <table id="video-details">
+            </div>
+            <table>
                 <tr>
+                    <th>Video Link</th>
                     <th>Video ID</th>
+                    <th>Channel ID</th>
+                    <th>Genre</th>
+                    <th>Comments Sheet URL</th>
+                    <th>Wait Interval</th>
+                    <th>Status</th>
                     <th>Likes</th>
                     <th>Comments</th>
                     <th>Views</th>
-                    <th>Ratio (Likes/Comments)</th>
                 </tr>
+                {% for campaign in campaigns %}
                 <tr>
-                    <td id="video-id"></td>
-                    <td id="likes"></td>
-                    <td id="comments"></td>
-                    <td id="views"></td>
-                    <td id="ratio"></td>
+                    <td><a href="{{ campaign['Video Link'] }}" target="_blank">{{ campaign['Video Link'] }}</a></td>
+                    <td>{{ campaign['Video ID'] }}</td>
+                    <td>{{ campaign['Channel ID'] }}</td>
+                    <td>{{ campaign['Genre'] }}</td>
+                    <td><a href="{{ campaign['Comments Sheet URL'] }}" target="_blank">{{ campaign['Comments Sheet URL'] }}</a></td>
+                    <td>{{ campaign['Wait Time'] }}</td>
+                    <td>{{ campaign['Status'] }}</td>
+                    <td>{{ campaign['Likes'] }}</td>
+                    <td>{{ campaign['Comments'] }}</td>
+                    <td>{{ campaign['Views'] }}</td>
+                    <td>
+                        <form method="POST" action="/start_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
+                            <button type="submit">Start</button>
+                        </form>
+                        <form method="POST" action="/stop_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
+                            <button type="submit">Stop</button>
+                        </form>
+                    </td>
                 </tr>
-                </table>
-            </div>
+                {% endfor %}
+            </table>
         </div>
     </div>
-    
-    <script>
-        const apiKey = 'AIzaSyByMM3rfblbA2CERRtCAKungfKTkjidk_c';  // Replace with your YouTube Data API key
-    
-        function extractVideoID(url) {
-            const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-            const match = url.match(regex);
-            return (match && match[1]) ? match[1] : null;
-        }
-    
-        async function fetchYouTubeData() {
-            const url = document.getElementById('youtube-url').value;
-            const videoId = extractVideoID(url);
-    
-            if (!videoId) {
-                alert('Please enter a valid YouTube video URL.');
-                return;
-            }
-    
-            const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?id=${videoId}&part=statistics&key=${apiKey}`);
-            const data = await response.json();
-            if (data.items.length === 0) {
-                alert('No video found for the given URL.');
-                return;
-            }
-    
-            const videoData = data.items[0].statistics;
-            const likes = videoData.likeCount;
-            const comments = videoData.commentCount;
-            const views = videoData.viewCount;
-            const ratio = (comments != 0) ? (likes / comments).toFixed(2) : "N/A";
-    
-            document.getElementById('video-id').textContent = videoId;
-            document.getElementById('likes').textContent = likes;
-            document.getElementById('comments').textContent = comments;
-            document.getElementById('views').textContent = views;
-            document.getElementById('ratio').textContent = ratio;
-        }
-    </script>
-    
-    </body>
-    </html>
+</div>
+</body>
+</html>

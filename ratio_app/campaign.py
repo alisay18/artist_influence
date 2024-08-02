@@ -1,14 +1,15 @@
+import datetime
+import logging as log
 import os
+import threading
 import time
+
 import numpy as np
 import pandas as pd
-import logging as log
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
-from jingle_smm import JingleSMM, MongoDB
 
-import datetime
-from googleapiclient.discovery import build
+from jingle_smm import JingleSMM
 
 # Load environment variables
 load_dotenv()
@@ -60,7 +61,11 @@ class YoutubeRatioCalc:
             end_date = now.strftime("%Y-%m-%d")
             start_date = one_hour_ago.strftime("%Y-%m-%d")
 
-            youtube = build("youtubeAnalytics", "v2", developerKey=self.api_key)
+            youtube = build(
+                "youtubeAnalytics",
+                "v2",
+                credentials="AIzaSyAvDxRgNPabecOKhb724DmJQy6k19x6Ji8",
+            )
             # Make the Analytics API request
             request = youtube.reports().query(
                 ids=f"channel=={self.channel_id}",
@@ -160,11 +165,13 @@ class Campaign:
     def __init__(self, data, ratio_calculator, comment_sheet, wait_time=36):
         self.data = data
         self.api = JingleSMM()
-        self.video_id = data["video_id"]
-        self.genre = data["genre"]
+        self.video_id = data["Video ID"]
+        self.genre = data["Genre"]
         self.comments_sheet = comment_sheet
-        self.ratio_calculator = ratio_calculator
+        self.ratio_calculator: YoutubeRatioCalc = ratio_calculator
         self.wait_time = wait_time
+        self.stop_flag = threading.Event()  # Add a stop flag
+
 
     def get_comments(self):
         if self.comments_sheet:
@@ -180,7 +187,15 @@ class Campaign:
         logger.info("Running campaign for video ID: %s", self.video_id)
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "video_link"])
-        while True:
+        view_last_hour = None
+        while not self.stop_flag.is_set():  
+            # Check the status of the campaign
+            if self.data["Status"] != "Running":
+                logger.info(
+                    "Campaign completed or stopped for video ID: %s", self.video_id
+                )
+                break
+
             # Update the views, likes, and comments
             self.ratio_calculator.get_views_likes_cmnts()
             self.desired_comments, self.desired_likes = (
@@ -206,11 +221,8 @@ class Campaign:
                     logger.error("No comments left to add")
                     break
 
-            view_last_hour = (
-                self.ratio_calculator.get_view_count_one_hour_ago()
-                if self.ratio_calculator.get_view_count_one_hour_ago()
-                else 0
-            )
+            if not view_last_hour:
+                view_last_hour = self.ratio_calculator.views + 10
             # If the video has less than the desired comments, order more comments
             if view_last_hour - self.ratio_calculator.views >= 10:
                 # Use the video delta to determine how many comments to order
@@ -235,8 +247,12 @@ class Campaign:
                 # Drop the used comments from the comments database
                 comments_db.drop(comments.index)
                 logger.info(f"Ordered comments: {response}")
-
+            view_last_hour = self.ratio_calculator.views
             time.sleep(self.wait_time)
+    
+    def stop(self):
+        self.stop_flag.set()  # Set the stop flag to stop the thread
+
 
 
 if __name__ == "__main__":
@@ -253,13 +269,17 @@ if __name__ == "__main__":
             "Hip Hop", views
         )
         campaign_data = {
-            "video_id": VIDEO_ID,
-            "genre": "Hip Hop",
+            "Video ID": VIDEO_ID,
+            "Channel ID": CHANNEL_ID,
+            "Genre": "Hip Hop",
+            "Comments Sheet URL": "https://docs.google.com/spreadsheets/d/14cQjj5fm0v0GixnY0APFF6jM02V8ovOfqyPHubkpyBY",
+            "Wait Time": 36,
+            "Status": "Running",
         }
         campaign = Campaign(
             campaign_data,
             calculator,
-            "https://docs.google.com/spreadsheets/d/14cQjj5fm0v0GixnY0APFF6jM02V8ovOfqyPHubkpyBY",
+            campaign_data["Comments Sheet URL"],
         )
         logger.info("Running campaign with desired views: %s", views)
         campaign.run(views)
