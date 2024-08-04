@@ -2,43 +2,188 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='AI_Logo_2024--r.png') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Campaign Manager</title>
+    <title>YouTube Video Details</title>
     <style>
-        table.data {
-            width: 100%;
-            border-collapse: collapse;
+        body {
+            background: linear-gradient(120deg, #1f1c1c, #fe0036);
+            color: #ecf0f1;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: auto;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
         }
-        table.data th, table.data td {
-            border: 1px solid black;
+        .container {
+            background: #1c1c1c;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 100%;
+            height: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .header, .footer {
+            flex-shrink: 0;
+        }
+        .content {
+            flex: 1;
+            overflow-y: auto;
+        }
+        h2 {
+            color: #ecf0f1;
+            margin-bottom: 20px;
+        }
+        a {
+            color: #e6e6e6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        input, button, select {
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #000000;
+            border-radius: 5px;
+            background: #2c3e50;
+            color: #ecf0f1;
+        }
+        input::placeholder {
+            color: #7f8c8d;
+        }
+        button {
+            background: #000000;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        button:hover {
+            background: #3b3a3a;;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
             padding: 8px;
             text-align: left;
+            border-bottom: 1px solid #34495e;
         }
-        table.data th {
-            background-color: #f2f2f2;
+        tr:hover {
+            background-color: #2c3e50;
         }
-        .button {
-            margin: 10px 0;
+        .actions form {
+            display: inline;
+        }
+        img {
+            display: block;
+            margin: 0 auto 20px;
+            max-width: 100%;
+            height: auto;
         }
     </style>
 </head>
 <body>
-    <h1>Campaign Manager</h1>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <label for="file">Upload CSV:</label>
-        <input type="file" id="file" name="file">
-        <button type="submit" class="button">Upload</button>
-    </form>
-    <form action="/start" method="get">
-        <button type="submit" class="button">Start Campaign</button>
-    </form>
-    <form action="/stop" method="get">
-        <button type="submit" class="button">Stop Campaign</button>
-    </form>
-    <form action="/export" method="get">
-        <button type="submit" class="button">Export CSV</button>
-    </form>
-    <h2>Campaigns</h2>
-    {{ tables|safe }}
+    <div class="container">
+        <div class="header">
+            <img src="{{ url_for('static', filename='AI_Logo_2024--r.png') }}" alt="Logo">  
+            <h2>Welcome, {{ user.username }}!</h2>
+            <a href="{{ url_for('logout') }}">Logout</a>
+            <form method="POST" action="/create_campaign" class="mt-5">
+                <h2>Create Campaign</h2>
+                <div>
+                    <label for="youtube_url">Enter YouTube Video URL:</label>
+                    <input type="text" id="youtube_url" name="youtube_url" required placeholder="Enter YouTube Video URL">
+                </div>
+                <div>
+                    <label for="channel_id">Channel ID:</label>
+                    <input type="text" id="channel_id" name="channel_id" required>
+                </div>
+                <div>
+                    <label for="genre">Genre:</label>
+                    <select id="genre" name="genre" required>
+                        <option value="Hip Hop">Hip Hop</option>
+                        <option value="Pop">Pop</option>
+                        <option value="House">House</option>
+                        <option value="Bass">Bass</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="comments_sheet">Comments Sheet URL:</label>
+                    <input type="text" id="comments_sheet" name="comments_sheet" required>
+                </div>
+                <div>
+                    <label for="wait_time">Wait Time (seconds):</label>
+                    <input type="number" id="wait_time" name="wait_time" required>
+                </div>
+                <button type="submit">Create Campaign</button>
+            </form>
+        </div>
+        <div class="content">
+            <div class="row">
+                <div class="column">
+                    <h2>Running Campaigns</h2>
+                    <div class="actions">
+                        <form method="POST" action="/stop">
+                            <button type="submit">Stop All Campaigns</button>
+                        </form>
+                        <form method="GET" action="/export_campaigns">
+                            <button type="submit">Export Campaigns</button>
+                        </form>
+                    </div>
+                    <table>
+                        <tr>
+                            <th>Video Link</th>
+                            <th>Video ID</th>
+                            <th>Channel ID</th>
+                            <th>Genre</th>
+                            <th>Comments Sheet URL</th>
+                            <th>Wait Interval</th>
+                            <th>Status</th>
+                            <th>Likes</th>
+                            <th>Comments</th>
+                            <th>Views</th>
+                            <th>Actions</th>
+                        </tr>
+                        {% for campaign in campaigns %}
+                        <tr>
+                            <td><a href="{{ campaign['Video Link'] }}" target="_blank">{{ campaign['Video Link'] }}</a></td>
+                            <td>{{ campaign['Video ID'] }}</td>
+                            <td>{{ campaign['Channel ID'] }}</td>
+                            <td>{{ campaign['Genre'] }}</td>
+                            <td><a href="{{ campaign['Comments Sheet URL'] }}" target="_blank">{{ campaign['Comments Sheet URL'] }}</a></td>
+                            <td>{{ campaign['Wait Time'] }}</td>
+                            <td>{{ campaign['Status'] }}</td>
+                            <td>{{ campaign['Likes'] }}</td>
+                            <td>{{ campaign['Comments'] }}</td>
+                            <td>{{ campaign['Views'] }}</td>
+                            <td>
+                                <form method="POST" action="/start_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
+                                    <button type="submit">Start</button>
+                                </form>
+                                <form method="POST" action="/stop_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
+                                    <button type="submit">Stop</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
+f

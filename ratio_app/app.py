@@ -8,6 +8,8 @@ from campaign import Campaign, YoutubeRatioCalc
 from dotenv import load_dotenv
 from flask import (Flask, flash, redirect, render_template, request, send_file,
                    send_from_directory, session, url_for)
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_bcrypt import Bcrypt
 from jingle_smm import JingleSMM
 
 load_dotenv()
@@ -17,6 +19,30 @@ app = Flask(__name__, template_folder="templates")
 app.secret_key = (
     "your_secret_key"  # You should use a secure and random secret key for production
 )
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+bcrypt = Bcrypt(app)
+
+
+# Mock database
+users = {}
+
+
+
+class User(UserMixin):
+    def __init__(self, id, username, password):
+        self.id = id
+        self.username = username
+        self.password = password
+
+# User loader function for Flask-Login
+@login_manager.user_loader
+def load_user(user_id):
+    return users.get(user_id)
+
 
 # Global dictionary to store campaign threads
 campaign_threads = {}
@@ -70,34 +96,49 @@ def favicon():
         mimetype="image/vnd.microsoft.icon",
     )
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        user_id = str(len(users) + 1)
+        users[user_id] = User(user_id, username, hashed_password)
+        flash('Registration successful. Please log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = next((u for u in users.values() if u.username == username), None)
+        if user and bcrypt.check_password_hash(user.password, password):
+            login_user(user)
+            flash('Login successful.', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Invalid username or password.', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('login'))
+
 
 @app.route("/", methods=["GET", "POST"])
+@login_required
 def index():
     return render_template(
-        "YTTableTest2.html", campaigns=json.loads(session.get("campaigns", "[]"))
+        "index.html", user=current_user,  campaigns=json.loads(session.get("campaigns", "[]"))
     )
-
-
-@app.route("/upload", methods=["POST"])
-def upload_file():
-    file = request.files["comments"]
-    new_data = load_csv(file)
-    # Convert the DataFrame to a string with rows separated by '\n'
-    df_string = new_data.to_string(index=False)
-    # Optional: Add newline characters between rows
-    comments = "\n".join(df_string.split("\n"))
-    session["comments"] = comments
-    return render_template(
-        "index2.html",
-        video_link=session["video_link"],
-        video_id=session["video_id"],
-        likes=session["likes"],
-        comments=comments,
-        views=session["views"],
-    )
-
 
 @app.route("/create_campaign", methods=["GET", "POST"])
+@login_required
 def create_campaign():
     if request.method == "POST":
         video_link = request.form["youtube_url"]
@@ -148,10 +189,12 @@ def create_campaign():
         except Exception as e:
             flash(f"An error occurred: {str(e)}", "danger")
         return redirect(url_for("index"))
-    return render_template("create_campaign.html")
+    flash("Please enter a YouTube video link and upload comments first.", "danger")
+    return redirect(url_for("index"))
 
 
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])
+@login_required
 def start_campaign(campaign_id):
     campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
     campaign_data = campaigns_df.loc[
@@ -175,6 +218,7 @@ def start_campaign(campaign_id):
 
 
 @app.route("/stop_campaign/<campaign_id>", methods=["POST"])
+@login_required
 def stop_campaign(campaign_id):
     campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
     campaign_data = campaigns_df.loc[
@@ -194,6 +238,7 @@ def stop_campaign(campaign_id):
 
 
 @app.route("/export_campaigns", methods=["GET"])
+@login_required
 def export():
     campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
     file_path = "campaigns_report.csv"
@@ -202,6 +247,7 @@ def export():
 
 
 @app.route("/stop", methods=["POST"])
+@login_required
 def stop():
     for campaign_id, (campaign, campaign_thread) in campaign_threads.items():
         if campaign_thread.is_alive():  # Check if the thread is still running
