@@ -12,6 +12,8 @@ from googleapiclient.discovery import build
 api_key = os.getenv("operations_youtube_api_key")
 
 
+# TODO: Instead of copying the same function, i recommend importing the function from the youtube ratio calculator in campaign.py
+# TODO: I've also added a get_video_title function to get the title of the video, please use the youtube ratio calculator class to get the video title
 def get_video_details(api_key, video_id):
     """_summary_
 
@@ -70,6 +72,8 @@ def get_stats_seven_days_ago(self):
         end_date = now.strftime("%Y-%m-%d")
         start_date = seven_days_ago.strftime("%Y-%m-%d")
 
+        # TODO: Your filepath on line 76 will not necessarily work on other people's computer (they dont have their client secret stored in the same place)
+        # TODO: Please fix this by changing it to an environment variable or a relative path
         # Load credentials from the service account file
         credentials = service_account.Credentials.from_service_account_file(
             "/Users/alisayoung/Downloads/client_secret_287536687792-s2ra0es9o2k9lu6g461e02p272f6dgnq.apps.googleusercontent.com.json",
@@ -154,3 +158,21 @@ for index, user in user_data.iterrows():
     name = user["First Name"]
     email = user["Email"]
     send_email(name, email, likes, comments, views, subscribers)
+
+
+#TODO: To test the code, you can run the youtube_reporting.py file in the terminal and have an if __name__ == "__main__": block to run the code
+#TODO: I've added an example below with github copilot the code may not necessarily be correct, you can get copilot for free with your academic account.
+if __name__ == "__main__":
+    user_data = load_data(
+        file_path="https://docs.google.com/spreadsheets/d/e/2PACX-1vSE58fcG7zdT4C73RQfUnq76R48AwyvsjkfSEOUhQTmHMthQqc-iklMyPLDMrL5mrIqZBwXoIBVFKkW/pub?gid=799904628&single=true&output=csv"
+    )
+
+    for index, user in user_data.iterrows():
+        # Parse user input
+        print(user, "user")
+        video_id = user["Video ID 1"]
+        print(video_id)
+        likes, comments, views, subscribers = get_video_details(api_key, video_id)
+        name = user["First Name"]
+        email = user["Email"]
+        send_email(name, email, likes, comments, views, subscribers)
