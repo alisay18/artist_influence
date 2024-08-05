@@ -7,3 +7,4 @@ pymongo
 pytest 
 pytest-flask
 python-dotenv
+gunicorn==20.1.0

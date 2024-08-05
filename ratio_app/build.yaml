@@ -1,0 +1,17 @@
+steps:
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        ls -la
+        sed -i'.bak' 's/##_YOUTUBE_API_KEY##/${_YOUTUBE_API_KEY}/' app.yaml
+        sed -i'.bak' 's/##_MIX_MAX_TOKEN##/${_MIX_MAX_TOKEN}/' app.yaml
+        sed -i'.bak' 's/##_JINGLE_SMM_KEY##/${_JINGLE_SMM_KEY}/' app.yaml
+        gcloud config set app/cloud_build_timeout 1600
+        gcloud app deploy
+timeout: '1600s'
+substitutions:
+  _YOUTUBE_API_KEY: ${_YOUTUBE_API_KEY}
+  _MIX_MAX_TOKEN: ${_MIX_MAX_TOKEN}
+  _JINGLE_SMM_KEY: ${_JINGLE_SMM_KEY}
