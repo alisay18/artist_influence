@@ -108,10 +108,6 @@
                     <input type="text" id="youtube_url" name="youtube_url" required placeholder="Enter YouTube Video URL">
                 </div>
                 <div>
-                    <label for="channel_id">Channel ID:</label>
-                    <input type="text" id="channel_id" name="channel_id" required>
-                </div>
-                <div>
                     <label for="genre">Genre:</label>
                     <select id="genre" name="genre" required>
                         <option value="Hip Hop">Hip Hop</option>
@@ -145,9 +141,9 @@
                     </div>
                     <table>
                         <tr>
+                            <th>Video Title</th>
                             <th>Video Link</th>
                             <th>Video ID</th>
-                            <th>Channel ID</th>
                             <th>Genre</th>
                             <th>Comments Sheet URL</th>
                             <th>Wait Interval</th>
@@ -159,10 +155,9 @@
                         </tr>
                         {% for campaign in campaigns %}
                         <tr>
-                            <td><a href="{{ campaign['Video Link'] }}" target="_blank">{{ campaign['Video Link'] }}</a></td>
                             <td>{{ campaign['Video Title'] }}</td>
+                            <td><a href="{{ campaign['Video Link'] }}" target="_blank">{{ campaign['Video Link'] }}</a></td>
                             <td>{{ campaign['Video ID'] }}</td>
-                            <td>{{ campaign['Channel ID'] }}</td>
                             <td>{{ campaign['Genre'] }}</td>
                             <td><a href="{{ campaign['Comments Sheet URL'] }}" target="_blank">{{ campaign['Comments Sheet URL'] }}</a></td>
                             <td>{{ campaign['Wait Time'] }}</td>

@@ -184,7 +184,7 @@ def create_campaign():
         wait_time = int(request.form["wait_time"])
         rc = YoutubeRatioCalc(API_KEY, video_id)
         likes, comments, views = rc.get_views_likes_cmnts()
-        title = rc.get_title()
+        title = rc.get_video_title()
         if not video_id:
             flash(
                 "Please enter a YouTube video link and upload comments first.", "danger"

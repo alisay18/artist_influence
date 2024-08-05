@@ -51,9 +51,9 @@ class YoutubeRatioCalc:
         self.music_gsheet = music_gsheet
         self.likes, self.comments, self.views = self.get_views_likes_cmnts()
 
-    def get_video_title(self, video_id):
+    def get_video_title(self):
         youtube = build("youtube", "v3", developerKey=self.api_key)
-        request = youtube.videos().list(part="snippet", id=video_id)
+        request = youtube.videos().list(part="snippet", id=self.video_id)
         response = request.execute()
 
         if response["items"]:
