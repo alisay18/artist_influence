@@ -1,4 +1,9 @@
 flask
+flask_bcrypt
+flask_login
 pandas
 google-api-python-client
-pymongo[srv]==3.6
+pymongo
+pytest 
+pytest-flask
+python-dotenv

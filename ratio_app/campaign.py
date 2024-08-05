@@ -1,3 +1,6 @@
+# Copyright (c) 2024, Artist Influence Development Team
+# All rights reserved.
+
 import datetime
 import logging as log
 import os
@@ -8,6 +11,7 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
+
 from jingle_smm import JingleSMM
 
 # Load environment variables
@@ -40,56 +44,33 @@ class YoutubeRatioCalc:
         self,
         api_key,
         video_id,
-        channel_id,
         music_gsheet="https://docs.google.com/spreadsheets/d/1k9A8viP4gFGjEwexNeLN6tmZyZ6YJIS_Ax6PxHjJvy8",
     ):
         self.api_key = api_key
         self.video_id = video_id
-        self.channel_id = channel_id
         self.video_details = None
         self.music_gsheet = music_gsheet
         self.likes, self.comments, self.views = self.get_views_likes_cmnts()
 
-    def get_view_count_one_hour_ago(self):
-        try:
-            # Get the current time and one hour ago
-            now = datetime.datetime.now()
-            one_hour_ago = now - datetime.timedelta(hours=1)
+    def get_video_title(self, video_id):
+        youtube = build("youtube", "v3", developerKey=self.api_key)
+        request = youtube.videos().list(part="snippet", id=video_id)
+        response = request.execute()
 
-            # Format dates for the API request
-            end_date = now.strftime("%Y-%m-%d")
-            start_date = one_hour_ago.strftime("%Y-%m-%d")
-
-            youtube = build(
-                "youtubeAnalytics",
-                "v2",
-                credentials="AIzaSyAvDxRgNPabecOKhb724DmJQy6k19x6Ji8",
-            )
-            # Make the Analytics API request
-            request = youtube.reports().query(
-                ids=f"channel=={self.channel_id}",
-                startDate=start_date,
-                endDate=end_date,
-                metrics="views",
-                dimensions="video",
-                filters=f"video=={self.video_id}",
-                sort="-views",
-            )
-            response = request.execute()
-
-            # Parse the response
-            if response.get("rows"):
-                view_count = response["rows"][0][1]
-                return int(view_count)
-            else:
-                print("No data found for the specified video and time range.")
-                return None
-
-        except Exception as e:
-            print(f"An error occurred: {str(e)}")
+        if response["items"]:
+            title = response["items"][0]["snippet"]["title"]
+            return title
+        else:
             return None
 
     def get_views_likes_cmnts(self):
+        """Get the views, likes, and comments for a video.
+
+        Returns:
+            likes (int): The number of likes for the video.
+            comments (int): The number of comments for the video.
+            views (int): The number of views for the video.
+        """
         try:
             youtube = build("youtube", "v3", developerKey=self.api_key)
             request = youtube.videos().list(part="statistics", id=self.video_id)
@@ -116,6 +97,16 @@ class YoutubeRatioCalc:
             return None, None, None
 
     def calculate_ratio(self, metric, views_arr, df):
+        """Calculate the ratio of a metric to views.
+
+        Args:
+            metric (str): The metric to calculate the ratio for can be likes or comments.
+            views_arr (list): The array of views.
+            df (pd.DataFrame): The dataframe containing the data.
+
+        Returns:
+            np.poly1d: The polynomial function representing the ratio.
+        """
         try:
             ratio_eq = np.polyfit(
                 np.log(np.array(views_arr)), np.log(np.array(df[metric])), 1
@@ -182,6 +173,11 @@ class Campaign:
             return None
 
     def run(self, desired_views):
+        """Run the campaign.
+
+        Args:
+            desired_views (int): The desired number of views for the video.
+        """
         logger.info("Running campaign for video ID: %s", self.video_id)
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "video_link"])
@@ -255,10 +251,9 @@ class Campaign:
 if __name__ == "__main__":
     API_KEY = os.getenv("YOUTUBE_API_KEY")
     VIDEO_ID = "AfSjnsYiY_A"
-    CHANNEL_ID = "UCTKTRVaWrythRIGNfZYBp2A"
 
     # Doesn't make sense to have to reintiailize in the campaign class
-    calculator = YoutubeRatioCalc(API_KEY, VIDEO_ID, CHANNEL_ID)
+    calculator = YoutubeRatioCalc(API_KEY, VIDEO_ID)
     likes, comments, views = calculator.get_views_likes_cmnts()
 
     if likes is not None and comments is not None:
@@ -267,7 +262,6 @@ if __name__ == "__main__":
         )
         campaign_data = {
             "Video ID": VIDEO_ID,
-            "Channel ID": CHANNEL_ID,
             "Genre": "Hip Hop",
             "Comments Sheet URL": "https://docs.google.com/spreadsheets/d/14cQjj5fm0v0GixnY0APFF6jM02V8ovOfqyPHubkpyBY",
             "Wait Time": 36,
