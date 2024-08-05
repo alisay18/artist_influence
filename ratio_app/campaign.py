@@ -154,6 +154,7 @@ class Campaign:
     def __init__(self, data, ratio_calculator, comment_sheet, wait_time=36):
         self.data = data
         self.api = JingleSMM()
+        self.damper = 0.2
         self.video_id = data["Video ID"]
         self.genre = data["Genre"]
         self.comments_sheet = comment_sheet
@@ -222,7 +223,7 @@ class Campaign:
                 diff = np.floor(
                     np.abs(
                         (self.ratio_calculator.comments / self.desired_comments)
-                        * (view_last_hour - self.ratio_calculator.views)
+                        * (view_last_hour - self.ratio_calculator.views) * self.damper
                     )
                 )
                 comments = comments_db.sample(n=int(diff) if diff > 5 else 6)
