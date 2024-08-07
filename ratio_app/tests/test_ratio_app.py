@@ -5,7 +5,7 @@ import json
 import pytest
 from flask import url_for
 
-from ..app import User, app, bcrypt, users
+from ..main import User, app, bcrypt, users
 from ..campaign import Campaign
 
 

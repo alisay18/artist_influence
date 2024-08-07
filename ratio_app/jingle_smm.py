@@ -7,7 +7,6 @@ import time
 import numpy as np
 import requests
 from dotenv import load_dotenv
-from pymongo.mongo_client import MongoClient
 
 load_dotenv()
 
