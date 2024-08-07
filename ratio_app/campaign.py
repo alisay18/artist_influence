@@ -222,7 +222,7 @@ class Campaign:
                 # Use the video delta to determine how many comments to order
                 diff = np.floor(
                     np.abs(
-                        (self.ratio_calculator.comments / self.desired_comments)
+                        (1 - self.ratio_calculator.comments / self.desired_comments)
                         * (view_last_hour - self.ratio_calculator.views) * self.damper
                     )
                 )
