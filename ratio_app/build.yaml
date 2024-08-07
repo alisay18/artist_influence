@@ -15,3 +15,6 @@ substitutions:
   _YOUTUBE_API_KEY: ${_YOUTUBE_API_KEY}
   _MIX_MAX_TOKEN: ${_MIX_MAX_TOKEN}
   _JINGLE_SMM_KEY: ${_JINGLE_SMM_KEY}
+options:
+  logging: CLOUD_LOGGING_ONLY
+serviceAccount: 287536687792-compute@developer.gserviceaccount.com
