@@ -154,7 +154,7 @@ class Campaign:
     def __init__(self, data, ratio_calculator, comment_sheet, wait_time=36):
         self.data = data
         self.api = JingleSMM()
-        self.damper = 0.2
+        self.damper = 0.1
         self.video_id = data["Video ID"]
         self.genre = data["Genre"]
         self.comments_sheet = comment_sheet
