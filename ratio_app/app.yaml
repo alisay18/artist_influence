@@ -27,7 +27,7 @@ resources:
   memory_gb: 2
   disk_size_gb: 10
 
-entrypoint: cd ratio_app && python main.py
+entrypoint: cd ratio_app && pip install -r requirements.txt && python main.py
 
 env_variables:
   YOUTUBE_API_KEY: ##_YOUTUBE_API_KEY##
