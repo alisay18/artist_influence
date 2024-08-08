@@ -27,6 +27,8 @@ resources:
   memory_gb: 2
   disk_size_gb: 10
 
+entrypoint: cd ratio_app && python main.py
+
 env_variables:
   YOUTUBE_API_KEY: ##_YOUTUBE_API_KEY##
   HTTPS: true
