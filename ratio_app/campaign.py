@@ -86,6 +86,7 @@ class YoutubeRatioCalc:
                     "comments": comments,
                     "views": views,
                 }
+                self.likes, self.comments, self.views = likes, comments, views
                 logger.info(f"Video details: {self.video_details}")
                 return likes, comments, views
             else:
@@ -154,7 +155,7 @@ class Campaign:
     def __init__(self, data, ratio_calculator, comment_sheet, wait_time=36):
         self.data = data
         self.api = JingleSMM()
-        self.damper = 0.1
+        self.damper = 0.01
         self.video_id = data["Video ID"]
         self.genre = data["Genre"]
         self.comments_sheet = comment_sheet
@@ -181,6 +182,9 @@ class Campaign:
         logger.info("Running campaign for video ID: %s", self.video_id)
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "video_link"])
+        min_views = 50
+        # Update the views, likes, and comments
+        self.ratio_calculator.get_views_likes_cmnts()
         view_last_hour = None
         while not self.stop_flag.is_set():
             # Check the status of the campaign
@@ -216,17 +220,33 @@ class Campaign:
                     break
 
             if not view_last_hour:
-                view_last_hour = self.ratio_calculator.views + 10
+                view_last_hour = self.ratio_calculator.views + min_views
             # If the video has less than the desired comments, order more comments
-            if view_last_hour - self.ratio_calculator.views >= 10:
+            logger.info(
+                f"Views last hour: {view_last_hour}, Current views: {self.ratio_calculator.views}"
+            )
+            if (
+                self.ratio_calculator.views - view_last_hour >= min_views
+                and self.ratio_calculator.comments < self.desired_comments
+            ):
                 # Use the video delta to determine how many comments to order
-                diff = np.floor(
-                    np.abs(
-                        (1 - self.ratio_calculator.comments / self.desired_comments)
-                        * (view_last_hour - self.ratio_calculator.views) * self.damper
-                    )
+                diff = np.min(
+                    [
+                        np.floor(
+                            np.abs(
+                                (
+                                    1
+                                    - self.ratio_calculator.comments
+                                    / self.desired_comments
+                                )
+                                * (self.ratio_calculator.views - view_last_hour)
+                                * self.damper
+                            )
+                        ),
+                        10,
+                    ]
                 )
-                comments = comments_db.sample(n=int(diff) if diff > 5 else 6)
+                comments = comments_db.sample(n=int(diff) if diff > 5 else 2)
                 comment = "\r\n".join(comments.index)
                 logger.info(f"Ordering {comments.shape[0]} comments")
                 response = self.api.order(
@@ -241,7 +261,7 @@ class Campaign:
                 # Drop the used comments from the comments database
                 comments_db.drop(comments.index)
                 logger.info(f"Ordered comments: {response}")
-            view_last_hour = self.ratio_calculator.views
+            view_last_hour = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
 
     def stop(self):

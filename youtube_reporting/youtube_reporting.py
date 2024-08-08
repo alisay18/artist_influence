@@ -160,8 +160,8 @@ for index, user in user_data.iterrows():
     send_email(name, email, likes, comments, views, subscribers)
 
 
-#TODO: To test the code, you can run the youtube_reporting.py file in the terminal and have an if __name__ == "__main__": block to run the code
-#TODO: I've added an example below with github copilot the code may not necessarily be correct, you can get copilot for free with your academic account.
+# TODO: To test the code, you can run the youtube_reporting.py file in the terminal and have an if __name__ == "__main__": block to run the code
+# TODO: I've added an example below with github copilot the code may not necessarily be correct, you can get copilot for free with your academic account.
 if __name__ == "__main__":
     user_data = load_data(
         file_path="https://docs.google.com/spreadsheets/d/e/2PACX-1vSE58fcG7zdT4C73RQfUnq76R48AwyvsjkfSEOUhQTmHMthQqc-iklMyPLDMrL5mrIqZBwXoIBVFKkW/pub?gid=799904628&single=true&output=csv"

@@ -181,6 +181,13 @@ def create_campaign():
         video_id = video_link.split("v=")[1]
         genre = request.form["genre"]
         comments_sheet = request.form["comments_sheet"]
+        # Clean the comments sheet URL
+        comments_sheet = comments_sheet.replace(" ", "")
+        # Strip everything after the sheet id 
+        parts = comments_sheet.split('/')
+        # Reconstruct the URL up to the sheet ID
+        comments_sheet = '/'.join(parts[:6])
+        comments_sheet = comments_sheet.rstrip("/")
         wait_time = int(request.form["wait_time"])
         rc = YoutubeRatioCalc(API_KEY, video_id)
         likes, comments, views = rc.get_views_likes_cmnts()

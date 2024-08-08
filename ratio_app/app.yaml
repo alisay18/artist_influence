@@ -12,7 +12,7 @@
 # limitations under the License.
 
 runtime: python310
-
+environment: flex
 runtime_config:
   operating_system: ubuntu22
   runtime_version: 18
