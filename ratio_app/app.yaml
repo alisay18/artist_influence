@@ -27,7 +27,7 @@ resources:
   memory_gb: 2
   disk_size_gb: 10
 
-entrypoint: pip install -r requirements.txt && python main.py
+entrypoint: pip install -r requirements.txt && gunicorn -b :$PORT main:app
 
 env_variables:
   YOUTUBE_API_KEY: ##_YOUTUBE_API_KEY##
