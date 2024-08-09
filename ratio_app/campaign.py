@@ -155,7 +155,7 @@ class Campaign:
     def __init__(self, data, ratio_calculator, comment_sheet, wait_time=36):
         self.data = data
         self.api = JingleSMM()
-        self.damper = 0.01
+        self.damper = 0.05
         self.video_id = data["Video ID"]
         self.genre = data["Genre"]
         self.comments_sheet = comment_sheet
@@ -173,7 +173,7 @@ class Campaign:
         else:
             return None
 
-    def run(self, desired_views):
+    def run(self, desired_views, campaign_data=None):
         """Run the campaign.
 
         Args:
@@ -182,10 +182,10 @@ class Campaign:
         logger.info("Running campaign for video ID: %s", self.video_id)
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "video_link"])
-        min_views = 50
+        min_views = 40
         # Update the views, likes, and comments
         self.ratio_calculator.get_views_likes_cmnts()
-        view_last_hour = None
+        last_views = None
         while not self.stop_flag.is_set():
             # Check the status of the campaign
             if self.data["Status"] != "Running":
@@ -193,7 +193,6 @@ class Campaign:
                     "Campaign completed or stopped for video ID: %s", self.video_id
                 )
                 break
-
             # Update the views, likes, and comments
             self.ratio_calculator.get_views_likes_cmnts()
             self.desired_comments, self.desired_likes = (
@@ -202,7 +201,7 @@ class Campaign:
                 )
             )
             logger.info(
-                f"Current comments: {self.ratio_calculator.comments}, Desired comments: {self.desired_comments}"
+                f"Current comments for {self.video_id}: {self.ratio_calculator.comments}, Desired comments: {self.desired_comments}"
             )
 
             if comments_db is None:
@@ -217,16 +216,20 @@ class Campaign:
                 comments_db = comments_db.drop(used_comments.index)
                 if comments_db.index.equals(used_comments.index):
                     logger.error("No comments left to add")
+                    self.stop()
+                    self.data["Status"] = "Completed"
+                    if (campaign_data is not None) and ("Status" in campaign_data):
+                        campaign_data["Status"] = "Completed"
+                    self.data
                     break
-
-            if not view_last_hour:
-                view_last_hour = self.ratio_calculator.views + min_views
+            if not last_views:
+                last_views = self.ratio_calculator.views - min_views
             # If the video has less than the desired comments, order more comments
             logger.info(
-                f"Views last hour: {view_last_hour}, Current views: {self.ratio_calculator.views}"
+                f"VideoID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
             )
             if (
-                self.ratio_calculator.views - view_last_hour >= min_views
+                self.ratio_calculator.views - last_views >= min_views
                 and self.ratio_calculator.comments < self.desired_comments
             ):
                 # Use the video delta to determine how many comments to order
@@ -239,16 +242,16 @@ class Campaign:
                                     - self.ratio_calculator.comments
                                     / self.desired_comments
                                 )
-                                * (self.ratio_calculator.views - view_last_hour)
+                                * (self.ratio_calculator.views - last_views)
                                 * self.damper
                             )
                         ),
                         10,
                     ]
                 )
-                comments = comments_db.sample(n=int(diff) if diff > 5 else 2)
+                comments = comments_db.sample(n=int(diff) if diff > 5 else 10)
                 comment = "\r\n".join(comments.index)
-                logger.info(f"Ordering {comments.shape[0]} comments")
+                logger.info(f"Ordering {comments.shape[0]} comments for {self.video_id}")
                 response = self.api.order(
                     {
                         "service": 1751,
@@ -261,7 +264,7 @@ class Campaign:
                 # Drop the used comments from the comments database
                 comments_db.drop(comments.index)
                 logger.info(f"Ordered comments: {response}")
-            view_last_hour = int(self.ratio_calculator.views)
+            last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
 
     def stop(self):
