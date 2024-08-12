@@ -15,6 +15,7 @@ from jingle_smm import JingleSMM
 
 # Load environment variables
 load_dotenv()
+print('test')
 
 # Set up logging
 logger = log.getLogger(__name__)
