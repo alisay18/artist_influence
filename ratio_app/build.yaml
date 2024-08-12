@@ -4,6 +4,7 @@ steps:
     args:
       - '-c'
       - |
+        cd ratio_app
         ls -la
         sed -i'.bak' 's/##_YOUTUBE_API_KEY##/${_YOUTUBE_API_KEY}/' app.yaml
         sed -i'.bak' 's/##_MIX_MAX_TOKEN##/${_MIX_MAX_TOKEN}/' app.yaml
@@ -15,3 +16,6 @@ substitutions:
   _YOUTUBE_API_KEY: ${_YOUTUBE_API_KEY}
   _MIX_MAX_TOKEN: ${_MIX_MAX_TOKEN}
   _JINGLE_SMM_KEY: ${_JINGLE_SMM_KEY}
+options:
+  logging: CLOUD_LOGGING_ONLY
+serviceAccount: 287536687792-compute@developer.gserviceaccount.com

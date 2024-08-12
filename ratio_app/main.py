@@ -181,6 +181,13 @@ def create_campaign():
         video_id = video_link.split("v=")[1]
         genre = request.form["genre"]
         comments_sheet = request.form["comments_sheet"]
+        # Clean the comments sheet URL
+        comments_sheet = comments_sheet.replace(" ", "")
+        # Strip everything after the sheet id 
+        parts = comments_sheet.split('/')
+        # Reconstruct the URL up to the sheet ID
+        comments_sheet = '/'.join(parts[:6])
+        comments_sheet = comments_sheet.rstrip("/")
         wait_time = int(request.form["wait_time"])
         rc = YoutubeRatioCalc(API_KEY, video_id)
         likes, comments, views = rc.get_views_likes_cmnts()
@@ -208,18 +215,15 @@ def create_campaign():
             campaign = Campaign(campaign_data, rc, comments_sheet, wait_time)
             # Convert session campaigns to DataFrame, append the new campaign, and save back to session
             campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
+            # Start the campaign in a new thread
+            flash("Campaign created and running!", "success")
+            campaign_thread = threading.Thread(target=campaign.run, args=(views,campaign_data))
+            campaign_thread.start()
+            campaign_threads[campaign_data["Campaign ID"]] = (campaign, campaign_thread)
             campaigns_df = pd.concat(
                 [campaigns_df, pd.DataFrame([campaign_data])], ignore_index=True
             )
             session["campaigns"] = campaigns_df.to_json(orient="records")
-            # Start the campaign in a new thread
-            flash("Campaign created and running!", "success")
-            threading.Thread(
-                target=campaign.run, args=(views,)
-            ).start()  # Run as a background process
-            campaign_thread = threading.Thread(target=campaign.run, args=(views,))
-            campaign_thread.start()
-            campaign_threads[campaign_data["Campaign ID"]] = (campaign, campaign_thread)
             return redirect(url_for("index"))
         except Exception as e:
             flash(f"An error occurred: {str(e)}", "danger")
