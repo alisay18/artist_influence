@@ -246,8 +246,17 @@ def write_emails_to_csv(match_list, filename="emails.csv"):
 
 
 def get_cities():
-    # return {"Berlin": "52.5200, 13.4050",   "New York": "40.7128, -74.0060", "London": "51.5074, -0.1278", "Los Angeles": "34.0549, 118.2426", "Chicago": "41.8781, -87.6298", "Atlanta":"33.7488, 84.3877", "Miami": "25.7617, 80.1918", "Nashville": "25.7617, 80.1918", "Austin": "30.2672, -97.7431", "Houston": "29.7604, -95.3698", "London": "51.5072, -0.1276", "Seoul": "37.5519, 126.9918", "Seattle": "47.6061, 122.3328", "Amsterdam": "52.3676, 4.9041", "Detroit": "42.3314, -83.0458", "Toronto": "43.6532, -79.3832", "Montreal": "45.5019, -73.5674", "Vancouver": "49.2827, -123.1207", "San Francisco": "37.7749, -122.4194", "Denver": "39.7392, -104.9903", "Philadelphia": "39.9526, -75.1652", "Washington D.C.": "38.9072, -77.0369", "Jersey City": "40.7178, -74.0431", "Boston": "42.3601, -71.0589", "Baltimore": "39.2904, -76.6122", "Salt Lake City": "40.7608, -111.8910"}
-    return {"New York": "40.7128, -74.0060"}
+    return {
+        "Berlin": "52.5200, 13.4050",
+        "New York": "40.7128, -74.0060",
+        "London": "51.5074, -0.1278",
+        "Los Angeles": "34.0549, 118.2426",
+        "Chicago": "41.8781, -87.6298",
+    }
+    # return {"Atlanta":"33.7488, 84.3877", "Miami": "25.7617, 80.1918", "Nashville": "25.7617, 80.1918", "Austin": "30.2672, -97.7431", "Houston": "29.7604, -95.3698", "Seoul": "37.5519, 126.9918"}
+    # return {"Seattle": "47.6061, 122.3328", "Amsterdam": "52.3676, 4.9041", "Detroit": "42.3314, -83.0458", "Toronto": "43.6532, -79.3832", "Montreal": "45.5019, -73.5674"}
+    # return {"Vancouver": "49.2827, -123.1207", "San Francisco": "37.7749, -122.4194", "Denver": "39.7392, -104.9903", "Philadelphia": "39.9526, -75.1652"}
+    # return {"Washington D.C.": "38.9072, -77.0369", "Jersey City": "40.7178, -74.0431", "Boston": "42.3601, -71.0589", "Baltimore": "39.2904, -76.6122", "Salt Lake City": "40.7608, -111.8910"}
 
 
 def send_email_with_attachment(receiver_email, attachment_path, attachment_filename):

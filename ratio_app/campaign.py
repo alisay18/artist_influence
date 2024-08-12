@@ -223,7 +223,8 @@ class Campaign:
                 diff = np.floor(
                     np.abs(
                         (self.ratio_calculator.comments / self.desired_comments)
-                        * (view_last_hour - self.ratio_calculator.views) * self.damper
+                        * (view_last_hour - self.ratio_calculator.views)
+                        * self.damper
                     )
                 )
                 comments = comments_db.sample(n=int(diff) if diff > 5 else 6)
