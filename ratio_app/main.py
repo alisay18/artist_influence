@@ -240,20 +240,23 @@ def create_campaign():
 @login_required
 def campaign_status_sse(campaign_id):
     def event_stream():
-        campaign, _ = campaign_threads.get(campaign_id, (None, None))
-        if campaign:
-            while not campaign.stop_flag.is_set():
-                data = {
-                    "views": campaign.ratio_calculator.views,
-                    "likes": campaign.ratio_calculator.likes,
-                    "comments": campaign.ratio_calculator.comments,
-                    "status": campaign.data["Status"],
-                }
-                yield f"data: {json.dumps(data)}\n\n"
-                time.sleep(4)
-        else:
-            yield 'data: {"error": "Campaign not found"}\n\n'
-
+        try:
+            campaign, _ = campaign_threads.get(campaign_id, (None, None))
+            if campaign:
+                while not campaign.stop_flag.is_set():
+                    data = {
+                        "views": campaign.ratio_calculator.views,
+                        "likes": campaign.ratio_calculator.likes,
+                        "comments": campaign.ratio_calculator.comments,
+                        "status": campaign.data["Status"],
+                    }
+                    yield f"data: {json.dumps(data)}\n\n"
+                    time.sleep(4)
+            else:
+                yield 'data: {"error": "Campaign not found"}\n\n'
+        except GeneratorExit as e:
+            logger.info(f"GeneratorExit: {str(e)}")
+            return
     return Response(event_stream(), content_type="text/event-stream")
 
 

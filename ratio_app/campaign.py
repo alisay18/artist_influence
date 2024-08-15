@@ -314,6 +314,7 @@ class Campaign:
                 self.mark_comments_as_used(self.comments_sheet_id, used_comments)
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
+            logger.info("Sleeping for %s seconds", self.wait_time)
 
     def stop(self):
         logger.info("Stopping campaign for video ID: %s", self.video_id)
