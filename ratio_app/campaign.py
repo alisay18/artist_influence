@@ -304,7 +304,6 @@ class Campaign:
                         "comments": comment,
                     }
                 )
-                response = ""
                 # Add the used comments to the used comments database
                 used_comments = pd.concat([used_comments, comments])
                 # Drop the used comments from the comments database
