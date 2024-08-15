@@ -243,6 +243,7 @@ def campaign_status_sse(campaign_id):
         try:
             campaign, _ = campaign_threads.get(campaign_id, (None, None))
             if campaign:
+                logger.info(f"Starting campaign {campaign_id} status stream")
                 while not campaign.stop_flag.is_set():
                     data = {
                         "views": campaign.ratio_calculator.views,
@@ -250,8 +251,10 @@ def campaign_status_sse(campaign_id):
                         "comments": campaign.ratio_calculator.comments,
                         "status": campaign.data["Status"],
                     }
+                    logger.info(f"VideoID: {campaign.video_id} Updating campaign {campaign_id}")
+                    logger.info(f"Data: {data}")
                     yield f"data: {json.dumps(data)}\n\n"
-                    time.sleep(4)
+                    time.sleep(40)
             else:
                 yield 'data: {"error": "Campaign not found"}\n\n'
         except GeneratorExit as e:
