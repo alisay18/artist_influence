@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "rich-phenomenon-428302-q5",
+  "private_key_id": "dba5f2f381c1ae876b1fa452fe3c256318a81541",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDOUgpyhZCBqvZ3\nfefeF9CPk1hd33Kb7s7pjx1BLg9FBgppALaAB8Lh0UKHKjlak9+NwJswLt3N8hT3\nc05ScJ2YGuidMbrRyNbwnypIQTRh0o6dcIFKAW+ggKXsSUk8bMWolwQhxgmRWS2u\n9Mul1mH9ts5jl/wFfkQJGbuH6fob+px/Hg2+uBUR2wgFbrFt7MXJYFnBR/Yj/oYz\n0Wei1FXVUegGi5CRFOKd1Ue06+dapfpKb0yDa+1AZPHJFI4n0exdkJO9Kv9gxnNC\nKMiZC0HvWDtHXIjy9m6e/yTptW2BOr/l7/m5uegD96xK6oZVYnD7odZeg5Q1ur0b\n74nUlDtHAgMBAAECggEAGHACOcdVMu6fi863cIhslRz0OgY16n9SNbrUUbyVZW0O\nPZqugyKoNBwXn6/iJDbgo0cdeosKjZKvZhHbxIr/N510UO4rfR6nSs/nb7B9dlq8\ntqw1PCFIaf/i50ZU7NnLXakpfaCZ0IP6E79+AZIPgEAvWP+PA82NXHCWVEZj7/07\n9oESG612Kljl1mQSIUaoM5iX8fm3GPWKPz+MgqVK+k+VYRQQk0zA3uC0Y0o6QGw3\ndBWbKRm80Kn7j6HUW5KrrMxgnrEykmKBqKDmhzJOJg8MLspUtBI6c2VTpTGYyeRo\nPiD+2kntcbjQGxz1CujP0VIt/CauXTXU6FBOD/7ooQKBgQD6yjzG+gekWUAuSuXp\nXHtDRmIOBr3aZI3haOS9N1/5fh9j+UyZm9brjWFdvU+n2sW8EcIxPv2k/a/6vkz3\nEe3XhdDycQNkZDDzkBVTs05S92wVJuQiSBeLesWpSjPJgyhbJo7ABxu0u4mRKeOC\n/WYl9jJVECCn69tJyhOo8iP3YQKBgQDSm025ceBhbNVZagCgcudP0IR0CxXnfJp4\nirAfxPMgz1rCsKzx3f9ZRYe1h9tilZPEyFS/XURze55zCiPh5thqRqwCncznftDT\no62+eHNtoQhaxEsawLzvQdjaVpkjhdtQZfc2++vTStywwennZfkzt5aslI918l94\nqFbpM6q7pwKBgD6ohKLaGUqwmd53DBZP6uQWE62ZdZm5AdHNmUjFKw90uXcK9F50\nly/m9Oqsv9gaSskATtpq+IhecbdeEHCyZBAy+M95+PT+K1TPLOTqqakE9FYcj2cZ\nR/irRfNT/LheMpkDeyrzG7L+IBLKunMhyIG3jz+9dcs+nF1FRcAyL1ZBAoGBALtb\nSdPVyKUjKtF2icQzNDA+8fZB/mSG5uyhhHlevmPL05QrlE8/DPCf+FC34aVcJ68C\nANKU6FZL/POea7mFobU51cAmHak7mg8NJ32wrg8zGLmWsrHEENBQJdhm/akqZaaq\nbzjM+Ehp6tacS7d9cipeAn7ZUp681c4DA/5F5nc1AoGAZS4fT/kZUHBZeLae+bGf\n+Jt7dtZ+0I9Z1rvPyj1gnmPVp8sYciHS93q2BLQ2sfXN7C4CFfD/o+Ow+PyM8rDI\nk2PBas5SdPT7dcUzJnKBeQ2gwD+V+lcdwt6IqlOUDjDGC+MA9gVt1wZdzwTpUQTs\n4SXLIjlt8V9V8wwlVebjOIU=\n-----END PRIVATE KEY-----\n",
+  "client_email": "sheets@rich-phenomenon-428302-q5.iam.gserviceaccount.com",
+  "client_id": "108661620886291764362",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sheets%40rich-phenomenon-428302-q5.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

@@ -2,6 +2,7 @@ flask==3.0.3
 flask_bcrypt
 flask_login
 pandas
+google==3.0.0
 google-api-python-client
 pymongo
 pytest 

@@ -9,14 +9,13 @@ import time
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 from jingle_smm import JingleSMM
 
 # Load environment variables
 load_dotenv()
-print('test')
-print('more')
 
 # Set up logging
 logger = log.getLogger(__name__)
@@ -24,6 +23,19 @@ logger.setLevel(log.INFO)
 handler = log.StreamHandler()
 handler.setFormatter(log.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 logger.addHandler(handler)
+
+# Set up Google Sheets API
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+SERVICE_ACCOUNT_FILE = (
+    f"{os.path.dirname(__file__)}/rich-phenomenon-428302-q5-dba5f2f381c1.json"
+)
+
+creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+
+sheet_service = build("sheets", "v4", credentials=creds)
 
 
 def load_data(file_path: str, dtype: dict = None):
@@ -161,6 +173,7 @@ class Campaign:
         self.video_id = data["Video ID"]
         self.genre = data["Genre"]
         self.comments_sheet = comment_sheet
+        self.comments_sheet_id = comment_sheet.split("/")[-1]
         self.ratio_calculator: YoutubeRatioCalc = ratio_calculator
         self.wait_time = wait_time
         self.stop_flag = threading.Event()  # Add a stop flag
@@ -169,11 +182,46 @@ class Campaign:
         if self.comments_sheet:
             comments = load_data(
                 self.comments_sheet + "/export?format=csv",
-                {"comments": "str", "video_link": "str"},
+                {"comments": "str", "used": "str"},
             )
             return comments
         else:
             return None
+
+    def mark_comments_as_used(self, spreadsheet_id, comments):
+        """
+        Update the Google Sheet to mark the comments as used.
+
+        Args:
+            spreadsheet_id (str): The ID of the Google Sheet.
+            comments (pd.DataFrame): The DataFrame containing the comments that were used.
+        """
+        try:
+            # Assuming the comments are in the first column (A)
+            used_comment_indices = comments.index.tolist()
+            range_ = f"Sheet1!B2:B{len(used_comment_indices)+1}"
+
+            # Prepare the data to be updated (e.g., mark with 'Used')
+            update_values = [["Used"] for _ in used_comment_indices]
+            body = {"values": update_values}
+            result = (
+                sheet_service.spreadsheets()
+                .values()
+                .update(
+                    spreadsheetId=spreadsheet_id,
+                    range=range_,
+                    valueInputOption="RAW",
+                    body=body,
+                )
+                .execute()
+            )
+
+            logger.info(
+                f"Updated {result.get('updatedCells')} cells in the Google Sheet."
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating the Google Sheet: {e}")
 
     def run(self, desired_views, campaign_data=None):
         """Run the campaign.
@@ -183,7 +231,7 @@ class Campaign:
         """
         logger.info("Running campaign for video ID: %s", self.video_id)
         comments_db = self.get_comments()
-        used_comments = pd.DataFrame(columns=["comments", "video_link"])
+        used_comments = pd.DataFrame(columns=["comments", "used"])
         min_views = 40
         # Update the views, likes, and comments
         self.ratio_calculator.get_views_likes_cmnts()
@@ -212,18 +260,8 @@ class Campaign:
             # If we ran out of comments to add, break the loop
             if comments_db.index.equals(used_comments.index):
                 logger.error("No comments left to add")
-                # See if we can order more comments
-                comments_db = self.get_comments()
-                # Remove the used comments
-                comments_db = comments_db.drop(used_comments.index)
-                if comments_db.index.equals(used_comments.index):
-                    logger.error("No comments left to add")
-                    self.stop()
-                    self.data["Status"] = "Completed"
-                    if (campaign_data is not None) and ("Status" in campaign_data):
-                        campaign_data["Status"] = "Completed"
-                    self.data
-                    break
+                self.stop()
+                break
             if not last_views:
                 last_views = self.ratio_calculator.views - min_views
             # If the video has less than the desired comments, order more comments
@@ -235,25 +273,30 @@ class Campaign:
                 and self.ratio_calculator.comments < self.desired_comments
             ):
                 # Use the video delta to determine how many comments to order
-                diff = np.min(
-                    [
-                        np.floor(
-                            np.abs(
-                                (
-                                    1
-                                    - self.ratio_calculator.comments
-                                    / self.desired_comments
+                diff = np.random.randint(
+                    3,
+                    np.max(
+                        [
+                            np.floor(
+                                np.abs(
+                                    (
+                                        1
+                                        - self.ratio_calculator.comments
+                                        / self.desired_comments
+                                    )
+                                    * (self.ratio_calculator.views - last_views)
+                                    * self.damper
                                 )
-                                * (self.ratio_calculator.views - last_views)
-                                * self.damper
-                            )
-                        ),
-                        10,
-                    ]
+                            ),
+                            5,
+                        ]
+                    ),
                 )
-                comments = comments_db.sample(n=int(diff) if diff > 5 else 10)
+                comments = comments_db.head(n=int(diff) if diff > 5 else 5)
                 comment = "\r\n".join(comments.index)
-                logger.info(f"Ordering {comments.shape[0]} comments for {self.video_id}")
+                logger.info(
+                    f"Ordering {comments.shape[0]} comments for {self.video_id}"
+                )
                 response = self.api.order(
                     {
                         "service": 1751,
@@ -261,16 +304,21 @@ class Campaign:
                         "comments": comment,
                     }
                 )
+                response = ""
                 # Add the used comments to the used comments database
-                used_comments = comments_db.loc[comments.index]
+                used_comments = pd.concat([used_comments, comments])
                 # Drop the used comments from the comments database
-                comments_db.drop(comments.index)
+                comments_db = comments_db.drop(comments.index)
                 logger.info(f"Ordered comments: {response}")
+                # Update the Google Sheet
+                self.mark_comments_as_used(self.comments_sheet_id, used_comments)
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
 
     def stop(self):
+        logger.info("Stopping campaign for video ID: %s", self.video_id)
         self.stop_flag.set()  # Set the stop flag to stop the thread
+        self.data["Status"] = "Completed"
 
 
 if __name__ == "__main__":
@@ -289,7 +337,7 @@ if __name__ == "__main__":
             "Video ID": VIDEO_ID,
             "Genre": "Hip Hop",
             "Comments Sheet URL": "https://docs.google.com/spreadsheets/d/14cQjj5fm0v0GixnY0APFF6jM02V8ovOfqyPHubkpyBY",
-            "Wait Time": 36,
+            "Wait Time": 16,
             "Status": "Running",
         }
         campaign = Campaign(

@@ -5,12 +5,14 @@ import json
 import logging as log
 import os
 import threading
+import time
 import uuid
 
 import pandas as pd
 from dotenv import load_dotenv
 from flask import (
     Flask,
+    Response,
     flash,
     redirect,
     render_template,
@@ -183,10 +185,10 @@ def create_campaign():
         comments_sheet = request.form["comments_sheet"]
         # Clean the comments sheet URL
         comments_sheet = comments_sheet.replace(" ", "")
-        # Strip everything after the sheet id 
-        parts = comments_sheet.split('/')
+        # Strip everything after the sheet id
+        parts = comments_sheet.split("/")
         # Reconstruct the URL up to the sheet ID
-        comments_sheet = '/'.join(parts[:6])
+        comments_sheet = "/".join(parts[:6])
         comments_sheet = comments_sheet.rstrip("/")
         wait_time = int(request.form["wait_time"])
         rc = YoutubeRatioCalc(API_KEY, video_id)
@@ -217,7 +219,9 @@ def create_campaign():
             campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
             # Start the campaign in a new thread
             flash("Campaign created and running!", "success")
-            campaign_thread = threading.Thread(target=campaign.run, args=(views,campaign_data))
+            campaign_thread = threading.Thread(
+                target=campaign.run, args=(views, campaign_data)
+            )
             campaign_thread.start()
             campaign_threads[campaign_data["Campaign ID"]] = (campaign, campaign_thread)
             campaigns_df = pd.concat(
@@ -230,6 +234,27 @@ def create_campaign():
         return redirect(url_for("index"))
     flash("Please enter a YouTube video link and upload comments first.", "danger")
     return redirect(url_for("index"))
+
+
+@app.route("/campaign_status_sse/<campaign_id>", methods=["GET"])
+@login_required
+def campaign_status_sse(campaign_id):
+    def event_stream():
+        campaign, _ = campaign_threads.get(campaign_id, (None, None))
+        if campaign:
+            while not campaign.stop_flag.is_set():
+                data = {
+                    "views": campaign.ratio_calculator.views,
+                    "likes": campaign.ratio_calculator.likes,
+                    "comments": campaign.ratio_calculator.comments,
+                    "status": campaign.data["Status"],
+                }
+                yield f"data: {json.dumps(data)}\n\n"
+                time.sleep(4)
+        else:
+            yield 'data: {"error": "Campaign not found"}\n\n'
+
+    return Response(event_stream(), content_type="text/event-stream")
 
 
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])

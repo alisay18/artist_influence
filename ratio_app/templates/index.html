@@ -161,10 +161,10 @@
                             <td>{{ campaign['Genre'] }}</td>
                             <td><a href="{{ campaign['Comments Sheet URL'] }}" target="_blank">{{ campaign['Comments Sheet URL'] }}</a></td>
                             <td>{{ campaign['Wait Time'] }}</td>
-                            <td>{{ campaign['Status'] }}</td>
-                            <td>{{ campaign['Likes'] }}</td>
-                            <td>{{ campaign['Comments'] }}</td>
-                            <td>{{ campaign['Views'] }}</td>
+                            <td id="status-{{ campaign['Campaign ID'] }}">{{ campaign['Status'] }}</td>
+                            <td id="likes-{{ campaign['Campaign ID'] }}">{{ campaign['Likes'] }}</td>
+                            <td id="comments-{{ campaign['Campaign ID'] }}">{{ campaign['Comments'] }}</td>
+                            <td id="views-{{ campaign['Campaign ID'] }}">{{ campaign['Views'] }}</td>                        
                             <td>
                                 <form method="POST" action="/start_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
                                     <button type="submit">Start</button>
@@ -180,5 +180,27 @@
             </div>
         </div>
     </div>
+    <script>
+        function initializeSSE(campaignId) {
+            const source = new EventSource(`/campaign_status_sse/${campaignId}`);
+        
+            source.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.error) {
+                    console.error(data.error);
+                } else {
+                    document.getElementById(`views-${campaignId}`).innerText = data.views;
+                    document.getElementById(`likes-${campaignId}`).innerText = data.likes;
+                    document.getElementById(`comments-${campaignId}`).innerText = data.comments;
+                    document.getElementById(`status-${campaignId}`).innerText = data.status;
+                }
+            };
+        }
+        
+        // Initialize SSE for each campaign
+        {% for campaign in campaigns %}
+        initializeSSE("{{ campaign['Campaign ID'] }}");
+        {% endfor %}
+        </script>        
 </body>
 </html>

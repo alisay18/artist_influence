@@ -5,8 +5,8 @@ import json
 import pytest
 from flask import url_for
 
-from ..main import User, app, bcrypt, users
 from ..campaign import Campaign
+from ..main import User, app, bcrypt, users
 
 
 @pytest.fixture
