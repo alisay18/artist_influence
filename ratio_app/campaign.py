@@ -258,7 +258,7 @@ class Campaign:
                 logger.error("No comments found")
                 break
             # If we ran out of comments to add, break the loop
-            if comments_db.index.equals(used_comments.index):
+            if comments_db.empty:
                 logger.error("No comments left to add")
                 self.stop()
                 break
@@ -269,7 +269,8 @@ class Campaign:
                 f"VideoID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
             )
             if (
-                self.ratio_calculator.views - last_views >= min_views
+                self.ratio_calculator.views - last_views
+                >= min_views
                 and self.ratio_calculator.comments < self.desired_comments
             ):
                 # Use the video delta to determine how many comments to order
