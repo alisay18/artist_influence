@@ -16,7 +16,7 @@ from googleapiclient.discovery import build
 # Load environment variables from .env file
 load_dotenv()
 api_key = os.getenv("OPERATIONS_YOUTUBE_API_KEY")
-print(api_key, 'APIKEY')
+
 
 # TODO: I've also added a get_video_title function to get the title of the video, please use the youtube ratio calculator class to get the video title
 def get_video_details(api_key, video_id, date):
@@ -133,8 +133,6 @@ def get_video_title(api_key, video_id):
         return None
 
 
-
-
 # Send Email
 # TODO: msg needs to be added to the email body
 def send_email(name, receiver_email, msg):
@@ -192,9 +190,9 @@ for index, user in user_data.iterrows():
         likes, comments, views, subscribers = get_video_details(api_key, video_id)
 
         # Calculate the date 7 days ago
-        seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime(
-            "%Y-%m-%d"
-        )
+        seven_days_ago = (
+            datetime.datetime.now() - datetime.timedelta(days=7)
+        ).strftime("%Y-%m-%d")
 
         # Get video details from seven days agp
         likes_7d, comments_7d, views_7d, subscribers_7d = get_video_details(
