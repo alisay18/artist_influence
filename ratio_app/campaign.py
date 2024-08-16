@@ -269,8 +269,7 @@ class Campaign:
                 f"VideoID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
             )
             if (
-                self.ratio_calculator.views - last_views
-                >= min_views
+                self.ratio_calculator.views - last_views >= min_views
                 and self.ratio_calculator.comments < self.desired_comments
             ):
                 # Use the video delta to determine how many comments to order
@@ -314,7 +313,9 @@ class Campaign:
                 self.mark_comments_as_used(self.comments_sheet_id, used_comments)
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
-            logger.info(f"Video ID: {self.video_id} Sleeping for {self.wait_time} seconds")
+            logger.info(
+                f"Video ID: {self.video_id} Sleeping for {self.wait_time} seconds"
+            )
 
     def stop(self):
         logger.info("Stopping campaign for video ID: %s", self.video_id)

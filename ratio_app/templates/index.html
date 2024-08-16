@@ -181,25 +181,26 @@
         </div>
     </div>
     <script>
-        function initializeSSE(campaignId) {
-            const source = new EventSource(`/campaign_status_sse/${campaignId}`);
-        
-            source.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                if (data.error) {
-                    console.error(data.error);
-                } else {
-                    document.getElementById(`views-${campaignId}`).innerText = data.views;
-                    document.getElementById(`likes-${campaignId}`).innerText = data.likes;
-                    document.getElementById(`comments-${campaignId}`).innerText = data.comments;
-                    document.getElementById(`status-${campaignId}`).innerText = data.status;
-                }
-            };
+        function fetchCampaignStatus(campaignId) {
+            fetch(`/campaign_status/${campaignId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error(data.error);
+                    } else {
+                        console.log(data)
+                        document.getElementById('views-' + campaignId).innerText = data.views;
+                        document.getElementById('likes-' + campaignId).innerText = data.likes;
+                        document.getElementById('comments-' + campaignId).innerText = data.comments;
+                    }
+                })
+                .catch(error => console.error('Error fetching campaign status:', error));
         }
-        
         // Initialize SSE for each campaign
         {% for campaign in campaigns %}
-        initializeSSE("{{ campaign['Campaign ID'] }}");
+            setInterval(() => {
+                fetchCampaignStatus("{{ campaign['Campaign ID'] }}")
+            }, 5000);
         {% endfor %}
         </script>        
 </body>

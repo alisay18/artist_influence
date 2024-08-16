@@ -5,14 +5,13 @@ import json
 import logging as log
 import os
 import threading
-import time
 import uuid
 
 import pandas as pd
 from dotenv import load_dotenv
 from flask import (
     Flask,
-    Response,
+    jsonify,
     flash,
     redirect,
     render_template,
@@ -236,35 +235,29 @@ def create_campaign():
     return redirect(url_for("index"))
 
 
-@app.route("/campaign_status_sse/<campaign_id>", methods=["GET"])
+@app.route("/campaign_status/<campaign_id>", methods=["GET"])
 @login_required
-def campaign_status_sse(campaign_id):
-    def event_stream():
-        start_time = time.time()
-        try:
-            campaign, _ = campaign_threads.get(campaign_id, (None, None))
-            if campaign:
-                logger.info(f"Starting campaign {campaign_id} status stream")
-                while not campaign.stop_flag.is_set():
-                    data = {
-                        "views": campaign.ratio_calculator.views,
-                        "likes": campaign.ratio_calculator.likes,
-                        "comments": campaign.ratio_calculator.comments,
-                        "status": campaign.data["Status"],
-                    }
-                    logger.info(f"VideoID: {campaign.video_id} Updating campaign {campaign_id}")
-                    logger.info(f"Data: {data}")
-                    yield f"data: {json.dumps(data)}\n\n"
-                    time.sleep(40)
-                    # Optional: close the connection after a certain period to prevent App Engine timeouts
-                    if time.time() - start_time > 30:  # 30 seconds timeout example
-                        break
-            else:
-                yield 'data: {"error": "Campaign not found"}\n\n'
-        except GeneratorExit as e:
-            logger.info(f"GeneratorExit: {str(e)}")
-            return
-    return Response(event_stream(), content_type="text/event-stream")
+def campaign_status(campaign_id):
+    campaign, _ = campaign_threads.get(campaign_id, (None, None))
+    logger.info(f"Starting campaign status long polling for {campaign_id}")
+    try:
+        if campaign:
+            data = {
+                "views": campaign.ratio_calculator.views,
+                "likes": campaign.ratio_calculator.likes,
+                "comments": campaign.ratio_calculator.comments,
+                "status": campaign.data["Status"],
+            }
+            logger.info(f"Video ID: {campaign.data['Video ID']}," f"Data: {data}")
+            logger.info(f"Data: {data}")
+            return jsonify(data)
+        else:
+            return jsonify({"error": "Campaign not found"}), 404
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        logger.info(f"Ending campaign status long polling for {campaign_id}")
 
 
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])
