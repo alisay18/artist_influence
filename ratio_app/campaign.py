@@ -223,6 +223,9 @@ class Campaign:
         except Exception as e:
             logger.error(f"Error updating the Google Sheet: {e}")
 
+    def _generate_multiples_of_5(self, low, high):
+        return [i for i in range(low, high + 1) if i % 5 == 0]
+
     def run(self, desired_views, campaign_data=None):
         """Run the campaign.
 
@@ -272,38 +275,62 @@ class Campaign:
                 self.ratio_calculator.views - last_views >= min_views
                 and self.ratio_calculator.comments < self.desired_comments
             ):
-                # Use the video delta to determine how many comments to order
-                diff = np.random.randint(
-                    3,
-                    np.max(
-                        [
-                            np.floor(
-                                np.abs(
-                                    (
-                                        1
-                                        - self.ratio_calculator.comments
-                                        / self.desired_comments
-                                    )
-                                    * (self.ratio_calculator.views - last_views)
-                                    * self.damper
+                max_desired_comments = np.max(
+                    [
+                        np.floor(
+                            np.abs(
+                                (
+                                    1
+                                    - self.ratio_calculator.comments
+                                    / self.desired_comments
                                 )
-                            ),
-                            5,
-                        ]
-                    ),
+                                * (self.ratio_calculator.views - last_views)
+                                * self.damper
+                            )
+                        ),
+                        5,
+                    ]
                 )
+                max_comments = self._generate_multiples_of_5(
+                    5, int(max_desired_comments)
+                )
+                # Use the video delta to determine how many comments to order
+                diff = np.random.choice(max_comments)
                 comments = comments_db.head(n=int(diff) if diff > 5 else 5)
-                comment = "\r\n".join(comments.index)
+                # Split comments into chunks of 5
+                comment_chunks = [
+                    "\r\n".join(comments.index[i : i + 5])
+                    for i in range(0, len(comments), 5)
+                ]
                 logger.info(
-                    f"Ordering {comments.shape[0]} comments for {self.video_id}"
+                    f"Ordering total of {comments.shape[0]} comments for {self.video_id}"
                 )
-                response = self.api.order(
-                    {
-                        "service": 1751,
-                        "link": f"https://www.youtube.com/watch?v={self.video_id}",
-                        "comments": comment,
-                    }
-                )
+                # Drip comments over the interval
+                interval_seconds = np.random.randint(
+                    10800, 18000
+                )  # Adjust this interval as needed
+                for comment_chunk in comment_chunks:
+                    # if comment_chunk is less than 5, skip
+                    if len(comment_chunk.splitlines()) < 5:
+                        # remove the comments from comments
+                        comments = comments.drop(
+                            comments.index[: len(comment_chunk.splitlines())]
+                        )
+                        continue
+                    logger.info(
+                        f"Video ID: {self.video_id} Ordering {len(comment_chunk.splitlines())} comments"
+                    )
+                    response = self.api.order(
+                        {
+                            "service": 1751,
+                            "link": f"https://www.youtube.com/watch?v={self.video_id}",
+                            "comments": comment_chunk,
+                        }
+                    )
+                    logger.info(f"Video ID: {self.video_id} Ordered comments: {response}")
+                    # Sleep between sending batches of comments to simulate "drip" effect
+                    time.sleep(interval_seconds)
+
                 # Add the used comments to the used comments database
                 used_comments = pd.concat([used_comments, comments])
                 # Drop the used comments from the comments database
