@@ -240,6 +240,7 @@ def create_campaign():
 @login_required
 def campaign_status_sse(campaign_id):
     def event_stream():
+        start_time = time.time()
         try:
             campaign, _ = campaign_threads.get(campaign_id, (None, None))
             if campaign:
@@ -255,6 +256,9 @@ def campaign_status_sse(campaign_id):
                     logger.info(f"Data: {data}")
                     yield f"data: {json.dumps(data)}\n\n"
                     time.sleep(40)
+                    # Optional: close the connection after a certain period to prevent App Engine timeouts
+                    if time.time() - start_time > 30:  # 30 seconds timeout example
+                        break
             else:
                 yield 'data: {"error": "Campaign not found"}\n\n'
         except GeneratorExit as e:
