@@ -33,7 +33,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 # Initialize Flask app and SQLAlchemy
 app = Flask(__name__, template_folder="templates")
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///campaigns.db"  # Use SQLite database
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////tmp/campaigns.db"  # Use SQLite database
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.secret_key = (
     "your_secret_key"  # You should use a secure and random secret key for production
