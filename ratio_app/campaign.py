@@ -235,7 +235,7 @@ class Campaign:
         logger.info("Running campaign for video ID: %s", self.video_id)
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "used"])
-        min_views = 40
+        min_views = 400
         # Update the views, likes, and comments
         self.ratio_calculator.get_views_likes_cmnts()
         last_views = None
@@ -307,7 +307,7 @@ class Campaign:
                 )
                 # Drip comments over the interval
                 interval_seconds = np.random.randint(
-                    10800, 18000
+                    10800, 180000
                 )  # Adjust this interval as needed
                 for comment_chunk in comment_chunks:
                     # if comment_chunk is less than 5, skip
@@ -317,6 +317,8 @@ class Campaign:
                             comments.index[: len(comment_chunk.splitlines())]
                         )
                         continue
+                    if self.stop_flag.is_set():
+                        break
                     logger.info(
                         f"Video ID: {self.video_id} Ordering {len(comment_chunk.splitlines())} comments"
                     )
@@ -330,14 +332,14 @@ class Campaign:
                     logger.info(f"Video ID: {self.video_id} Ordered comments: {response}")
                     # Sleep between sending batches of comments to simulate "drip" effect
                     time.sleep(interval_seconds)
-
                 # Add the used comments to the used comments database
                 used_comments = pd.concat([used_comments, comments])
                 # Drop the used comments from the comments database
-                comments_db = comments_db.drop(comments.index)
+                comments_db.drop(comments.index, inplace=True)
                 logger.info(f"Ordered comments: {response}")
                 # Update the Google Sheet
                 self.mark_comments_as_used(self.comments_sheet_id, used_comments)
+            self.ratio_calculator.get_views_likes_cmnts()
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
             logger.info(

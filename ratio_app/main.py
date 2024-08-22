@@ -45,11 +45,17 @@ handler = log.StreamHandler()
 handler.setFormatter(log.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 logger.addHandler(handler)
 
+from flask_sqlalchemy import SQLAlchemy
 
+# Initialize Flask app and SQLAlchemy
 app = Flask(__name__, template_folder="templates")
-app.secret_key = (
-    "your_secret_key"  # You should use a secure and random secret key for production
-)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///campaigns.db'  # Use SQLite database
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.secret_key = "your_secret_key"  # You should use a secure and random secret key for production
+
+db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
+
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -57,11 +63,37 @@ login_manager.login_view = "login"
 
 bcrypt = Bcrypt(app)
 
+class CampaignModel(db.Model):
+    id = db.Column(db.Integer)
+    campaign_id = db.Column(db.String(36), unique=True, nullable=False,primary_key=True)
+    video_title = db.Column(db.String(100), nullable=False)
+    video_link = db.Column(db.String(255), nullable=False)
+    video_id = db.Column(db.String(50), nullable=False)
+    genre = db.Column(db.String(50), nullable=False)
+    comments_sheet_url = db.Column(db.String(255), nullable=False)
+    wait_time = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(50), nullable=False)
+    likes = db.Column(db.Integer, nullable=True)
+    comments = db.Column(db.Integer, nullable=True)
+    views = db.Column(db.Integer, nullable=True)
+
+    def to_dict(self):
+        return {
+            "Campaign ID": self.campaign_id,
+            "Video Title": self.video_title,
+            "Video Link": self.video_link,
+            "Video ID": self.video_id,
+            "Genre": self.genre,
+            "Comments Sheet URL": self.comments_sheet_url,
+            "Wait Time": self.wait_time,
+            "Status": self.status,
+            "Likes": self.likes,
+            "Comments": self.comments,
+            "Views": self.views
+        }
 
 # Mock database
 users = {}
-
-
 class User(UserMixin):
     def __init__(self, id, username, password):
         self.id = id
@@ -77,22 +109,6 @@ def load_user(user_id):
 
 # Global dictionary to store campaign threads
 campaign_threads = {}
-
-
-campaigns = pd.DataFrame(
-    columns=[
-        "Video Title",
-        "Video Link",
-        "Video ID",
-        "Genre",
-        "Comments Sheet URL",
-        "Wait Time",
-        "Status",
-        "Likes",
-        "Comments",
-        "Views",
-    ]
-)
 
 
 def load_csv(file_path):
@@ -118,6 +134,58 @@ def process_campaign(comments, video_id, service=1751):
     status = api.status(order["order"])
     return status, order["order"]
 
+def stop_campaign_thread(campaign_id):
+    campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
+    if campaign:
+        logger.info(f"Stopping campaign {campaign_id} thread")
+        campaign.stop()
+        logger.info(f"Waiting for campaign {campaign_id} thread to stop")
+        campaign_thread.join()
+        logger.info(f"Campaign {campaign_id} thread stopped")
+
+def stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel):
+    """
+    Stops all active campaigns, clears campaign threads, and deletes all campaign records from the database.
+
+    Args:
+        campaign_threads (dict): Dictionary storing all active campaign threads.
+        db (SQLAlchemy): SQLAlchemy instance to interact with the database.
+        CampaignModel (db.Model): The Campaign model representing the campaigns table in the database.
+    """
+    logger.info("Stopping and clearing all campaigns.")
+    
+    # Iterate over all active campaigns and stop them
+    for campaign_id, (campaign, campaign_thread) in campaign_threads.items():
+        if campaign_thread.is_alive():  # Check if the thread is still running
+            campaign.stop()  # Signal the campaign to stop
+            logger.info(f"Waiting for campaign {campaign_id} thread to stop.")
+                    # Stop the campaign asynchronously
+            thread = threading.Thread(target=stop_campaign_thread, args=(campaign_id,))
+            thread.start()
+            logger.info(f"Campaign {campaign_id} has been stopped.")
+    
+    # Clear the campaign_threads dictionary
+    campaign_threads.clear()
+    
+    # Delete all campaigns from the database
+    try:
+        num_deleted = db.session.query(CampaignModel).delete()
+        db.session.commit()
+        logger.info(f"Deleted {num_deleted} campaigns from the database.")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error clearing campaigns from the database: {e}")
+    
+    logger.info("All campaigns have been stopped, cleared, and removed from the database.")
+
+
+@app.before_request
+def create_tables():
+    # The following line will remove this handler, making it
+    # only run on the first request
+    app.before_request_funcs[None].remove(create_tables)
+
+    db.create_all()
 
 @app.route("/favicon.ico")
 def favicon():
@@ -167,12 +235,9 @@ def logout():
 @app.route("/", methods=["GET", "POST"])
 @login_required
 def index():
-    return render_template(
-        "index.html",
-        user=current_user,
-        campaigns=json.loads(session.get("campaigns", "[]")),
-    )
-
+    all_campaigns = CampaignModel.query.all()
+    campaigns = [campaign.to_dict() for campaign in all_campaigns]
+    return render_template("index.html", user=current_user, campaigns=campaigns)
 
 @app.route("/create_campaign", methods=["GET", "POST"])
 @login_required
@@ -186,54 +251,47 @@ def create_campaign():
         comments_sheet = comments_sheet.replace(" ", "")
         # Strip everything after the sheet id
         parts = comments_sheet.split("/")
-        # Reconstruct the URL up to the sheet ID
         comments_sheet = "/".join(parts[:6])
         comments_sheet = comments_sheet.rstrip("/")
         wait_time = int(request.form["wait_time"])
         rc = YoutubeRatioCalc(API_KEY, video_id)
         likes, comments, views = rc.get_views_likes_cmnts()
         title = rc.get_video_title()
+
         if not video_id:
-            flash(
-                "Please enter a YouTube video link and upload comments first.", "danger"
-            )
+            flash("Please enter a YouTube video link and upload comments first.", "danger")
             return redirect(url_for("index"))
 
         try:
-            campaign_data = {
-                "Video Link": video_link,
-                "Video Title": title,
-                "Video ID": video_id,
-                "Genre": genre,
-                "Comments Sheet URL": comments_sheet,
-                "Wait Time": wait_time,
-                "Status": "Running",
-                "Likes": likes,
-                "Comments": comments,
-                "Views": views,
-                "Campaign ID": str(uuid.uuid4()),  # Generate a unique campaign ID
-            }
-            campaign = Campaign(campaign_data, rc, comments_sheet, wait_time)
-            # Convert session campaigns to DataFrame, append the new campaign, and save back to session
-            campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
+            campaign_data = CampaignModel(
+                campaign_id=str(uuid.uuid4()),  # Generate a unique campaign ID
+                video_title=title,
+                video_link=video_link,
+                video_id=video_id,
+                genre=genre,
+                comments_sheet_url=comments_sheet,
+                wait_time=wait_time,
+                status="Running",
+                likes=likes,
+                comments=comments,
+                views=views
+            )
+            db.session.add(campaign_data)
+            db.session.commit()
+
+            campaign = Campaign(campaign_data.to_dict(), rc, comments_sheet, wait_time)
             # Start the campaign in a new thread
             flash("Campaign created and running!", "success")
-            campaign_thread = threading.Thread(
-                target=campaign.run, args=(views, campaign_data)
-            )
+            campaign_thread = threading.Thread(target=campaign.run, args=(views,))
             campaign_thread.start()
-            campaign_threads[campaign_data["Campaign ID"]] = (campaign, campaign_thread)
-            campaigns_df = pd.concat(
-                [campaigns_df, pd.DataFrame([campaign_data])], ignore_index=True
-            )
-            session["campaigns"] = campaigns_df.to_json(orient="records")
+            campaign_threads[campaign_data.campaign_id] = (campaign, campaign_thread)
+
             return redirect(url_for("index"))
         except Exception as e:
             flash(f"An error occurred: {str(e)}", "danger")
-        return redirect(url_for("index"))
+            return redirect(url_for("index"))
     flash("Please enter a YouTube video link and upload comments first.", "danger")
     return redirect(url_for("index"))
-
 
 @app.route("/campaign_status/<campaign_id>", methods=["GET"])
 @login_required
@@ -263,69 +321,56 @@ def campaign_status(campaign_id):
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])
 @login_required
 def start_campaign(campaign_id):
-    campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
-    campaign_data = campaigns_df.loc[
-        campaigns_df["Campaign ID"] == campaign_id
-    ].to_dict(orient="records")[0]
-    campaign_data["Status"] = "Running"
-    campaigns_df.loc[campaigns_df["Campaign ID"] == campaign_id, "Status"] = "Running"
-    session["campaigns"] = campaigns_df.to_json(orient="records")
-
-    # Restart the campaign
-    campaign, _ = campaign_threads.get(campaign_id, (None, None))
-    if campaign:
+    logger.info(f"Starting campaign {campaign_id}")
+    campaign_data = CampaignModel.query.get(campaign_id)
+    if campaign_data:
+        # Stop the campaign if it is already running
+        stop_campaign_thread(campaign_id)
         logger.info(f"Restarting campaign {campaign_id}")
-        campaign.stop_flag.clear()
+        rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
+        rc.get_views_likes_cmnts()
+        rc.get_video_title()
+        campaign = Campaign(campaign_data.to_dict(), rc, campaign_data.comments_sheet_url, campaign_data.wait_time)
+        campaign.data["Status"] = "Running"
         campaign_thread = threading.Thread(
             target=campaign.run, args=(campaign.data["Views"],)
         )
         campaign_thread.start()
         campaign_threads[campaign_id] = (campaign, campaign_thread)
-
+        campaign_data.status = "Running"
+        db.session.commit()
     return redirect(url_for("index"))
-
-
-def stop_campaign_thread(campaign_id):
-    campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
-    if campaign:
-        logger.info(f"Stopping campaign {campaign_id} thread")
-        campaign.stop()
-        logger.info(f"Waiting for campaign {campaign_id} thread to stop")
-        campaign_thread.join()
-        logger.info(f"Campaign {campaign_id} thread stopped")
-
 
 @app.route("/stop_campaign/<campaign_id>", methods=["POST"])
 @login_required
 def stop_campaign(campaign_id):
     logger.info(f"Stopping campaign {campaign_id}")
-    campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
-    campaign_data = campaigns_df.loc[
-        campaigns_df["Campaign ID"] == campaign_id
-    ].to_dict(orient="records")[0]
-    campaign_data["Status"] = "Completed"
-    campaigns_df.loc[campaigns_df["Campaign ID"] == campaign_id, "Status"] = "Completed"
-    session["campaigns"] = campaigns_df.to_json(orient="records")
-
-    # Stop the campaign
+    campaign = CampaignModel.query.get(campaign_id)
+    campaign.status = "Completed"
+    db.session.commit()
     campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
+    # Stop the campaign
     if campaign:
         logger.info(f"Stopping campaign {campaign_id} thread")
         campaign.stop()
         # Stop the campaign asynchronously
         thread = threading.Thread(target=stop_campaign_thread, args=(campaign_id,))
         thread.start()
-
+    # Remove the campaign from the campaign_threads dictionary
+    campaign_threads.pop(campaign_id, None)
     return redirect(url_for("index"))
 
 
 @app.route("/export_campaigns", methods=["GET"])
 @login_required
 def export():
-    campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
+    all_campaigns = CampaignModel.query.all()
+    campaigns = [campaign.to_dict() for campaign in all_campaigns]
+    campaigns_df = pd.DataFrame(campaigns)
     file_path = "campaigns_report.csv"
     campaigns_df.to_csv(file_path, index=False)
     return send_file(file_path, as_attachment=True)
+
 
 
 @app.route("/stop", methods=["POST"])
@@ -335,17 +380,27 @@ def stop():
         if campaign_thread.is_alive():  # Check if the thread is still running
             campaign.stop()  # Signal the campaign to stop
             # Stop the campaign asynchronously
+            logger.info(f"Stopping campaign {campaign_id} thread")
             thread = threading.Thread(target=stop_campaign_thread, args=(campaign_id,))
             thread.start()
     # Clear the campaign_threads dictionary
     campaign_threads.clear()
+    # Clear the campaigns in the session
+    db.session.query(CampaignModel).update({CampaignModel.status: "Completed"})
+    db.session.commit()
+    logger.info("All campaigns stopped!")
     # Update the status of all campaigns in the session
-    campaigns_df = pd.DataFrame(json.loads(session.get("campaigns", "[]")))
-    campaigns_df["Status"] = "Completed"
-    session["campaigns"] = campaigns_df.to_json(orient="records")
     flash("All campaigns stopped!", "success")
     return redirect(url_for("index"))
 
+
+@app.route("/clear_all_campaigns", methods=["POST"])
+@login_required
+def stop_all_campaigns():
+    stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel)
+    logger.info("All campaigns have been stopped, cleared, and removed from the database!")
+    flash("All campaigns have been stopped, cleared, and removed from the database!", "success")
+    return redirect(url_for("index"))
 
 if __name__ == "__main__":
     app.run(debug=True)
