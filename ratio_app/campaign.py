@@ -329,7 +329,9 @@ class Campaign:
                             "comments": comment_chunk,
                         }
                     )
-                    logger.info(f"Video ID: {self.video_id} Ordered comments: {response}")
+                    logger.info(
+                        f"Video ID: {self.video_id} Ordered comments: {response}"
+                    )
                     # Sleep between sending batches of comments to simulate "drip" effect
                     time.sleep(interval_seconds)
                 # Add the used comments to the used comments database

@@ -9,27 +9,11 @@ import uuid
 
 import pandas as pd
 from dotenv import load_dotenv
-from flask import (
-    Flask,
-    jsonify,
-    flash,
-    redirect,
-    render_template,
-    request,
-    send_file,
-    send_from_directory,
-    session,
-    url_for,
-)
+from flask import (Flask, flash, jsonify, redirect, render_template, request,
+                   send_file, send_from_directory, session, url_for)
 from flask_bcrypt import Bcrypt
-from flask_login import (
-    LoginManager,
-    UserMixin,
-    current_user,
-    login_required,
-    login_user,
-    logout_user,
-)
+from flask_login import (LoginManager, UserMixin, current_user, login_required,
+                         login_user, logout_user)
 
 from campaign import Campaign, YoutubeRatioCalc
 from jingle_smm import JingleSMM
@@ -49,9 +33,11 @@ from flask_sqlalchemy import SQLAlchemy
 
 # Initialize Flask app and SQLAlchemy
 app = Flask(__name__, template_folder="templates")
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///campaigns.db'  # Use SQLite database
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = "your_secret_key"  # You should use a secure and random secret key for production
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///campaigns.db"  # Use SQLite database
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.secret_key = (
+    "your_secret_key"  # You should use a secure and random secret key for production
+)
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
@@ -63,9 +49,12 @@ login_manager.login_view = "login"
 
 bcrypt = Bcrypt(app)
 
+
 class CampaignModel(db.Model):
     id = db.Column(db.Integer)
-    campaign_id = db.Column(db.String(36), unique=True, nullable=False,primary_key=True)
+    campaign_id = db.Column(
+        db.String(36), unique=True, nullable=False, primary_key=True
+    )
     video_title = db.Column(db.String(100), nullable=False)
     video_link = db.Column(db.String(255), nullable=False)
     video_id = db.Column(db.String(50), nullable=False)
@@ -89,11 +78,14 @@ class CampaignModel(db.Model):
             "Status": self.status,
             "Likes": self.likes,
             "Comments": self.comments,
-            "Views": self.views
+            "Views": self.views,
         }
+
 
 # Mock database
 users = {}
+
+
 class User(UserMixin):
     def __init__(self, id, username, password):
         self.id = id
@@ -134,6 +126,7 @@ def process_campaign(comments, video_id, service=1751):
     status = api.status(order["order"])
     return status, order["order"]
 
+
 def stop_campaign_thread(campaign_id):
     campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
     if campaign:
@@ -142,6 +135,7 @@ def stop_campaign_thread(campaign_id):
         logger.info(f"Waiting for campaign {campaign_id} thread to stop")
         campaign_thread.join()
         logger.info(f"Campaign {campaign_id} thread stopped")
+
 
 def stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel):
     """
@@ -153,20 +147,20 @@ def stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel):
         CampaignModel (db.Model): The Campaign model representing the campaigns table in the database.
     """
     logger.info("Stopping and clearing all campaigns.")
-    
+
     # Iterate over all active campaigns and stop them
     for campaign_id, (campaign, campaign_thread) in campaign_threads.items():
         if campaign_thread.is_alive():  # Check if the thread is still running
             campaign.stop()  # Signal the campaign to stop
             logger.info(f"Waiting for campaign {campaign_id} thread to stop.")
-                    # Stop the campaign asynchronously
+            # Stop the campaign asynchronously
             thread = threading.Thread(target=stop_campaign_thread, args=(campaign_id,))
             thread.start()
             logger.info(f"Campaign {campaign_id} has been stopped.")
-    
+
     # Clear the campaign_threads dictionary
     campaign_threads.clear()
-    
+
     # Delete all campaigns from the database
     try:
         num_deleted = db.session.query(CampaignModel).delete()
@@ -175,8 +169,10 @@ def stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel):
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error clearing campaigns from the database: {e}")
-    
-    logger.info("All campaigns have been stopped, cleared, and removed from the database.")
+
+    logger.info(
+        "All campaigns have been stopped, cleared, and removed from the database."
+    )
 
 
 @app.before_request
@@ -186,6 +182,7 @@ def create_tables():
     app.before_request_funcs[None].remove(create_tables)
 
     db.create_all()
+
 
 @app.route("/favicon.ico")
 def favicon():
@@ -239,6 +236,7 @@ def index():
     campaigns = [campaign.to_dict() for campaign in all_campaigns]
     return render_template("index.html", user=current_user, campaigns=campaigns)
 
+
 @app.route("/create_campaign", methods=["GET", "POST"])
 @login_required
 def create_campaign():
@@ -259,7 +257,9 @@ def create_campaign():
         title = rc.get_video_title()
 
         if not video_id:
-            flash("Please enter a YouTube video link and upload comments first.", "danger")
+            flash(
+                "Please enter a YouTube video link and upload comments first.", "danger"
+            )
             return redirect(url_for("index"))
 
         try:
@@ -274,7 +274,7 @@ def create_campaign():
                 status="Running",
                 likes=likes,
                 comments=comments,
-                views=views
+                views=views,
             )
             db.session.add(campaign_data)
             db.session.commit()
@@ -292,6 +292,7 @@ def create_campaign():
             return redirect(url_for("index"))
     flash("Please enter a YouTube video link and upload comments first.", "danger")
     return redirect(url_for("index"))
+
 
 @app.route("/campaign_status/<campaign_id>", methods=["GET"])
 @login_required
@@ -330,7 +331,12 @@ def start_campaign(campaign_id):
         rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
         rc.get_views_likes_cmnts()
         rc.get_video_title()
-        campaign = Campaign(campaign_data.to_dict(), rc, campaign_data.comments_sheet_url, campaign_data.wait_time)
+        campaign = Campaign(
+            campaign_data.to_dict(),
+            rc,
+            campaign_data.comments_sheet_url,
+            campaign_data.wait_time,
+        )
         campaign.data["Status"] = "Running"
         campaign_thread = threading.Thread(
             target=campaign.run, args=(campaign.data["Views"],)
@@ -340,6 +346,7 @@ def start_campaign(campaign_id):
         campaign_data.status = "Running"
         db.session.commit()
     return redirect(url_for("index"))
+
 
 @app.route("/stop_campaign/<campaign_id>", methods=["POST"])
 @login_required
@@ -372,7 +379,6 @@ def export():
     return send_file(file_path, as_attachment=True)
 
 
-
 @app.route("/stop", methods=["POST"])
 @login_required
 def stop():
@@ -398,9 +404,15 @@ def stop():
 @login_required
 def stop_all_campaigns():
     stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel)
-    logger.info("All campaigns have been stopped, cleared, and removed from the database!")
-    flash("All campaigns have been stopped, cleared, and removed from the database!", "success")
+    logger.info(
+        "All campaigns have been stopped, cleared, and removed from the database!"
+    )
+    flash(
+        "All campaigns have been stopped, cleared, and removed from the database!",
+        "success",
+    )
     return redirect(url_for("index"))
+
 
 if __name__ == "__main__":
     app.run(debug=True)
