@@ -266,7 +266,7 @@ class Campaign:
                 self.stop()
                 break
             if not last_views:
-                last_views = self.ratio_calculator.views - min_views
+                last_views = self.ratio_calculator.views
             # If the video has less than the desired comments, order more comments
             logger.info(
                 f"VideoID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
