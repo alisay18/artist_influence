@@ -235,7 +235,7 @@ class Campaign:
         logger.info("Running campaign for video ID: %s", self.video_id)
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "used"])
-        min_views = 1000
+        min_views = 500
         # Update the views, likes, and comments
         self.ratio_calculator.get_views_likes_cmnts()
         last_views = None
