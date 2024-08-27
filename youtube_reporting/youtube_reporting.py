@@ -4,11 +4,11 @@
 import datetime
 import os
 import smtplib
-from dotenv import load_dotenv
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import pandas as pd
+from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build

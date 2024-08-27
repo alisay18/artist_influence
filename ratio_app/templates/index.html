@@ -151,8 +151,9 @@
                             <th>Wait Interval</th>
                             <th>Status</th>
                             <th>Likes</th>
-                            <th>Comments</th>
                             <th>Views</th>
+                            <th>Comments</th>
+                            <th>Desired Comments</th>
                             <th>Actions</th>
                         </tr>
                         {% for campaign in campaigns %}
@@ -165,8 +166,9 @@
                             <td>{{ campaign['Wait Time'] }}</td>
                             <td id="status-{{ campaign['Campaign ID'] }}">{{ campaign['Status'] }}</td>
                             <td id="likes-{{ campaign['Campaign ID'] }}">{{ campaign['Likes'] }}</td>
+                            <td id="views-{{ campaign['Campaign ID'] }}">{{ campaign['Views'] }}</td>    
                             <td id="comments-{{ campaign['Campaign ID'] }}">{{ campaign['Comments'] }}</td>
-                            <td id="views-{{ campaign['Campaign ID'] }}">{{ campaign['Views'] }}</td>                        
+                            <td id="desired-comments-{{ campaign['Campaign ID'] }}">{{ campaign['Desired Comments'] }}</td>                        
                             <td>
                                 <form method="POST" action="/start_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
                                     <button type="submit">Start</button>
@@ -194,6 +196,7 @@
                         document.getElementById('views-' + campaignId).innerText = data.views;
                         document.getElementById('likes-' + campaignId).innerText = data.likes;
                         document.getElementById('comments-' + campaignId).innerText = data.comments;
+                        document.getElementById('desired-comments-' + campaignId).innerText = data.desired_comments;
                     }
                 })
                 .catch(error => console.error('Error fetching campaign status:', error));

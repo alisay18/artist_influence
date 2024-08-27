@@ -174,6 +174,7 @@ class Campaign:
         self.genre = data["Genre"]
         self.comments_sheet = comment_sheet
         self.comments_sheet_id = comment_sheet.split("/")[-1]
+        self.num_used_comments = 0
         self.ratio_calculator: YoutubeRatioCalc = ratio_calculator
         self.wait_time = wait_time
         self.stop_flag = threading.Event()  # Add a stop flag
@@ -184,6 +185,11 @@ class Campaign:
                 self.comments_sheet + "/export?format=csv",
                 {"comments": "str", "used": "str"},
             )
+            #
+            self.num_used_comments = comments[comments["used"] == "Used"].shape[0]
+            # Remove comments that have already been used
+            comments = comments[comments["used"] != "Used"]
+            logger.info(f"Loaded {comments.shape[0]} comments from the Google Sheet.")
             return comments
         else:
             return None
@@ -198,11 +204,10 @@ class Campaign:
         """
         try:
             # Assuming the comments are in the first column (A)
-            used_comment_indices = comments.index.tolist()
-            range_ = f"Sheet1!B2:B{len(used_comment_indices)+1}"
-
+            used_comment_indices = len(comments.index.tolist()) + self.num_used_comments
+            range_ = f"Sheet1!B2:B{used_comment_indices + 1}"
             # Prepare the data to be updated (e.g., mark with 'Used')
-            update_values = [["Used"] for _ in used_comment_indices]
+            update_values = [["Used"] for _ in range(used_comment_indices)]
             body = {"values": update_values}
             result = (
                 sheet_service.spreadsheets()
@@ -236,6 +241,7 @@ class Campaign:
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "used"])
         min_views = 500
+        total_time = 0
         # Update the views, likes, and comments
         self.ratio_calculator.get_views_likes_cmnts()
         last_views = None
@@ -307,7 +313,7 @@ class Campaign:
                 )
                 # Drip comments over the interval
                 interval_seconds = np.random.randint(
-                    10800, 180000
+                    10800, 18000
                 )  # Adjust this interval as needed
                 for comment_chunk in comment_chunks:
                     # if comment_chunk is less than 5, skip
@@ -334,6 +340,7 @@ class Campaign:
                     )
                     # Sleep between sending batches of comments to simulate "drip" effect
                     time.sleep(interval_seconds)
+                    total_time += interval_seconds
                 # Add the used comments to the used comments database
                 used_comments = pd.concat([used_comments, comments])
                 # Drop the used comments from the comments database
@@ -341,9 +348,42 @@ class Campaign:
                 logger.info(f"Ordered comments: {response}")
                 # Update the Google Sheet
                 self.mark_comments_as_used(self.comments_sheet_id, used_comments)
+            # send comments every 12 hours
+            elif (
+                self.ratio_calculator.comments < self.desired_comments
+                and total_time > 43200
+            ):
+                logger.info(
+                    f"Video ID: {self.video_id} Ordering {self.desired_comments} comments for 12 hour interval"
+                )
+                comments = comments_db.head(n=5)
+                # Split comments into chunks of 5
+                comment_chunks = [
+                    "\r\n".join(comments.index[i : i + 5])
+                    for i in range(0, len(comments), 5)
+                ]
+                response = self.api.order(
+                    {
+                        "service": 1751,
+                        "link": f"https://www.youtube.com/watch?v={self.video_id}",
+                        "comments": comment_chunks[0],
+                    }
+                )
+                # Add the used comments to the used comments database
+                used_comments = pd.concat([used_comments, comments])
+                # Drop the used comments from the comments database
+                comments_db.drop(comments.index, inplace=True)
+                logger.info(f"Ordered comments: {response}")
+                # Update the Google Sheet
+                self.mark_comments_as_used(self.comments_sheet_id, used_comments)
+                logger.info(
+                    f"Video ID: {self.video_id} Ordered comments: {response} for 12 hour interval"
+                )
+                total_time = 0
             self.ratio_calculator.get_views_likes_cmnts()
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
+            total_time += self.wait_time
             logger.info(
                 f"Video ID: {self.video_id} Sleeping for {self.wait_time} seconds"
             )

@@ -1,19 +1,35 @@
 # Copyright (c) 2024, Artist Influence Development Team
 # All rights reserved.
 
-import json
 import logging as log
 import os
 import threading
 import uuid
 
+import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from flask import (Flask, flash, jsonify, redirect, render_template, request,
-                   send_file, send_from_directory, session, url_for)
+from flask import (
+    Flask,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    session,
+    url_for,
+)
 from flask_bcrypt import Bcrypt
-from flask_login import (LoginManager, UserMixin, current_user, login_required,
-                         login_user, logout_user)
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
 
 from campaign import Campaign, YoutubeRatioCalc
 from jingle_smm import JingleSMM
@@ -33,7 +49,9 @@ from flask_sqlalchemy import SQLAlchemy
 
 # Initialize Flask app and SQLAlchemy
 app = Flask(__name__, template_folder="templates")
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////tmp/campaigns.db"  # Use SQLite database
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    "sqlite:////tmp/campaigns.db"  # Use SQLite database
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.secret_key = (
     "your_secret_key"  # You should use a secure and random secret key for production
@@ -65,6 +83,7 @@ class CampaignModel(db.Model):
     likes = db.Column(db.Integer, nullable=True)
     comments = db.Column(db.Integer, nullable=True)
     views = db.Column(db.Integer, nullable=True)
+    desired_comments = db.Column(db.Integer, nullable=True)
 
     def to_dict(self):
         return {
@@ -79,6 +98,7 @@ class CampaignModel(db.Model):
             "Likes": self.likes,
             "Comments": self.comments,
             "Views": self.views,
+            "Desired Comments": self.desired_comments,
         }
 
 
@@ -306,6 +326,11 @@ def campaign_status(campaign_id):
                 "likes": campaign.ratio_calculator.likes,
                 "comments": campaign.ratio_calculator.comments,
                 "status": campaign.data["Status"],
+                "desired_comments": (
+                    np.floor(campaign.desired_comments)
+                    if campaign.desired_comments
+                    else 0
+                ),
             }
             logger.info(f"Video ID: {campaign.data['Video ID']}," f"Data: {data}")
             logger.info(f"Data: {data}")
