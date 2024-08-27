@@ -183,12 +183,12 @@ class Campaign:
         if self.comments_sheet:
             comments = load_data(
                 self.comments_sheet + "/export?format=csv",
-                {"comments": "str", "used": "str"},
+                {"comments": "str", "Used": "str"},
             )
-            #
-            self.num_used_comments = comments[comments["used"] == "Used"].shape[0]
+            # if the used
+            self.num_used_comments = comments[comments["Used"] == "Used"].shape[0]
             # Remove comments that have already been used
-            comments = comments[comments["used"] != "Used"]
+            comments = comments[comments["Used"] != "Used"]
             logger.info(f"Loaded {comments.shape[0]} comments from the Google Sheet.")
             return comments
         else:
