@@ -127,7 +127,7 @@ def load_csv(file_path):
     return pd.read_csv(file_path)
 
 
-def process_campaign(comments, video_id, service=1751):
+def process_campaign(comments, video_id, service=440):
     api = JingleSMM()
     # Add order
     order = api.order(
@@ -148,13 +148,20 @@ def process_campaign(comments, video_id, service=1751):
 
 
 def stop_campaign_thread(campaign_id):
-    campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
-    if campaign:
-        logger.info(f"Stopping campaign {campaign_id} thread")
-        campaign.stop()
-        logger.info(f"Waiting for campaign {campaign_id} thread to stop")
-        campaign_thread.join()
-        logger.info(f"Campaign {campaign_id} thread stopped")
+    try:
+        campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
+        if campaign and campaign_thread.is_alive():
+            logger.info(f"Stopping campaign {campaign_id} thread")
+            campaign.stop()
+            logger.info(f"Waiting for campaign {campaign_id} thread to stop")
+            campaign_thread.join()
+            logger.info(f"Campaign {campaign_id} thread stopped")
+        else:
+            logger.info(f"Campaign {campaign_id} thread not found")
+    except Exception as e: 
+        logger.error(f"Error stopping campaign {campaign_id} thread: {e}")
+        return False
+    return True
 
 
 def stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel):
@@ -347,30 +354,34 @@ def campaign_status(campaign_id):
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])
 @login_required
 def start_campaign(campaign_id):
-    logger.info(f"Starting campaign {campaign_id}")
-    campaign_data = CampaignModel.query.get(campaign_id)
-    if campaign_data:
-        # Stop the campaign if it is already running
-        stop_campaign_thread(campaign_id)
-        logger.info(f"Restarting campaign {campaign_id}")
-        rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
-        rc.get_views_likes_cmnts()
-        rc.get_video_title()
-        campaign = Campaign(
-            campaign_data.to_dict(),
-            rc,
-            campaign_data.comments_sheet_url,
-            campaign_data.wait_time,
-        )
-        campaign.data["Status"] = "Running"
-        campaign_thread = threading.Thread(
-            target=campaign.run, args=(campaign.data["Views"],)
-        )
-        campaign_thread.start()
-        campaign_threads[campaign_id] = (campaign, campaign_thread)
-        campaign_data.status = "Running"
-        db.session.commit()
-    return redirect(url_for("index"))
+    try: 
+        logger.info(f"Starting campaign {campaign_id}")
+        campaign_data = CampaignModel.query.get(campaign_id)
+        if campaign_data and campaign_data.status == "Completed":
+            # Stop the campaign if it is already running
+            stop_campaign_thread(campaign_id)
+            logger.info(f"Restarting campaign {campaign_id}")
+            rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
+            rc.get_views_likes_cmnts()
+            rc.get_video_title()
+            campaign = Campaign(
+                campaign_data.to_dict(),
+                rc,
+                campaign_data.comments_sheet_url,
+                campaign_data.wait_time,
+            )
+            campaign.data["Status"] = "Running"
+            campaign_thread = threading.Thread(
+                target=campaign.run, args=(campaign.data["Views"],)
+            )
+            campaign_thread.start()
+            campaign_threads[campaign_id] = (campaign, campaign_thread)
+            campaign_data.status = "Running"
+            db.session.commit()
+        return redirect(url_for("index"))
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        return redirect(url_for("index"))
 
 
 @app.route("/stop_campaign/<campaign_id>", methods=["POST"])

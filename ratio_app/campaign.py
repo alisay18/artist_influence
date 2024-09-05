@@ -265,6 +265,7 @@ class Campaign:
 
             if comments_db is None:
                 logger.error("No comments found")
+                self.stop()
                 break
             # If we ran out of comments to add, break the loop
             if comments_db.empty:
@@ -330,7 +331,7 @@ class Campaign:
                     )
                     response = self.api.order(
                         {
-                            "service": 1751,
+                            "service": 440,
                             "link": f"https://www.youtube.com/watch?v={self.video_id}",
                             "comments": comment_chunk,
                         }
@@ -364,7 +365,7 @@ class Campaign:
                 ]
                 response = self.api.order(
                     {
-                        "service": 1751,
+                        "service": 440,
                         "link": f"https://www.youtube.com/watch?v={self.video_id}",
                         "comments": comment_chunks[0],
                     }
