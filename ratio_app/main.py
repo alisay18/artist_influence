@@ -31,6 +31,9 @@ from flask_login import (
     logout_user,
 )
 
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import create_engine
+
 from campaign import Campaign, YoutubeRatioCalc
 from jingle_smm import JingleSMM
 
@@ -48,8 +51,6 @@ logger.setLevel(log.INFO)
 handler = log.StreamHandler()
 handler.setFormatter(log.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 logger.addHandler(handler)
-
-from flask_sqlalchemy import SQLAlchemy
 
 # Initialize GCP storage client
 storage_client = storage.Client()
@@ -97,6 +98,7 @@ class CampaignModel(db.Model):
     comments = db.Column(db.Integer, nullable=True)
     views = db.Column(db.Integer, nullable=True)
     desired_comments = db.Column(db.Integer, nullable=True)
+    desired_likes = db.Column(db.Integer, nullable=True)
 
     def to_dict(self):
         return {
@@ -112,6 +114,7 @@ class CampaignModel(db.Model):
             "Comments": self.comments,
             "Views": self.views,
             "Desired Comments": self.desired_comments,
+            "Desired Likes": self.desired_likes
         }
 
 
@@ -128,12 +131,16 @@ class User(UserMixin):
 def download_db():
     blob = bucket.blob(db_blob_name)
     blob.download_to_filename(db_file_path)
+    if not os.path.exists(db_file_path):
+        open(db_file_path, 'w').close()
 
 def upload_db():
     blob = bucket.blob(db_blob_name)
     blob.upload_from_filename(db_file_path)
+    print(f'File {db_blob_name} uploaded to {bucket_name}.')
 
 def save_db_changes():
+    db.session.commit()
     upload_db()
 
 @app.before_request
@@ -231,7 +238,7 @@ def stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel):
     )
 
 
-def start_all_campaigns(campaign_threads, db, CampaignModel):
+def start_all_campaigns(campaign_threads, CampaignModel):
     """
     Starts all campaigns in the database.
 
@@ -403,6 +410,9 @@ def campaign_status(campaign_id):
                     if campaign.desired_comments
                     else 0
                 ),
+                "desired_likes": (
+                    np.floor(campaign.desired_likes) if campaign.desired_likes else 0
+                ),
             }
             logger.info(f"Video ID: {campaign.data['Video ID']}," f"Data: {data}")
             logger.info(f"Data: {data}")
@@ -503,7 +513,7 @@ def stop():
 @app.route("/start_all_campaigns", methods=["POST"])
 @login_required
 def start_all():
-    start_all_campaigns(campaign_threads, db, CampaignModel)
+    start_all_campaigns(campaign_threads, CampaignModel)
     logger.info("All campaigns have been started!")
     flash("All campaigns have been started!", "success")
     return redirect(url_for("index"))

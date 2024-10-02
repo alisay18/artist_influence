@@ -183,9 +183,9 @@ class Campaign:
         if self.comments_sheet:
             comments = load_data(
                 self.comments_sheet + "/export?format=csv",
-                {"comments": "str", "Used": "str"},
+                {"Comments": "str", "Used": "str"},
             )
-            # if the used
+            # if the used column is not present, add it
             self.num_used_comments = comments[comments["Used"] == "Used"].shape[0]
             # Remove comments that have already been used
             comments = comments[comments["Used"] != "Used"]
@@ -232,7 +232,7 @@ class Campaign:
         return [i for i in range(low, high + 1) if i % 5 == 0]
 
     def order_comments(
-        self, comments, last_views, min_views, comments_db, used_comments
+        self, comments, last_views, min_views, comments_db, used_comments, total_time=0
     ):
         if (
             self.ratio_calculator.views - last_views >= min_views
@@ -330,7 +330,7 @@ class Campaign:
             )
             total_time = 0
     
-    def order_likes(self, last_views, min_views):
+    def order_likes(self, last_views, min_views, total_time):
         if self.ratio_calculator.views - last_views >= min_views and self.ratio_calculator.likes < self.desired_likes:
             max_desired_likes = np.max(
                 [
@@ -338,14 +338,13 @@ class Campaign:
                         np.abs(
                             (1 - self.ratio_calculator.likes / self.desired_likes)
                             * (self.ratio_calculator.views - last_views)
-                            * self.damper * 1.2 # increase the damper to increase the number of likes
                         )
                     ),
-                    5,
+                    11,
                 ]
             )
             # Use the video delta to determine how many comments to order
-            likes = np.random.randint(5, int(max_desired_likes) if max_desired_likes > 5 else 5)
+            likes = np.random.randint(10, int(max_desired_likes) if max_desired_likes > 10 else 10)
             logger.info(
                 f"Ordering total of {likes} likes for {self.video_id}"
             )
@@ -427,10 +426,10 @@ class Campaign:
                 f"VideoID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
             )
             self.order_comments(
-                comments_db, last_views, min_views, comments_db, used_comments
+                comments_db, last_views, min_views, comments_db, used_comments, total_time
             )
 
-            self.order_likes(last_views,min_views)
+            self.order_likes(last_views,min_views, total_time)
             self.ratio_calculator.get_views_likes_cmnts()
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)

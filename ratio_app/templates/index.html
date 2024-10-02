@@ -132,17 +132,19 @@
                 <div class="column">
                     <h2>Running Campaigns</h2>
                     <div class="actions">
-                        <form method="POST" action="/start">
-                            <button type="submit">Start All Campaigns</button>
                         <form method="POST" action="/stop">
                             <button type="submit">Stop All Campaigns</button>
+                        </form>
+                        <form method="POST" action="/start_all_campaigns">
+                            <button type="submit">Start All Campaigns</button>
                         </form>
                         <form method="GET" action="/export_campaigns">
                             <button type="submit">Export Campaigns</button>
                         </form>
                         <form method="POST" action="/clear_all_campaigns">
                             <button type="submit">Clear all Campaigns (this action cannot be undone)</button>
-                        </form>                    </div>
+                        </form>                    
+                    </div>
                     <table>
                         <tr>
                             <th>Video Title</th>
@@ -156,6 +158,7 @@
                             <th>Views</th>
                             <th>Comments</th>
                             <th>Desired Comments</th>
+                            <th>Desired Likes</th>
                             <th>Actions</th>
                         </tr>
                         {% for campaign in campaigns %}
@@ -170,7 +173,8 @@
                             <td id="likes-{{ campaign['Campaign ID'] }}">{{ campaign['Likes'] }}</td>
                             <td id="views-{{ campaign['Campaign ID'] }}">{{ campaign['Views'] }}</td>    
                             <td id="comments-{{ campaign['Campaign ID'] }}">{{ campaign['Comments'] }}</td>
-                            <td id="desired-comments-{{ campaign['Campaign ID'] }}">{{ campaign['Desired Comments'] }}</td>                        
+                            <td id="desired-comments-{{ campaign['Campaign ID'] }}">{{ campaign['Desired Comments'] }}</td>  
+                            <td id="desired-likes-{{ campaign['Campaign ID'] }}">{{ campaign['Desired Likes'] }}</td>                        
                             <td>
                                 <form method="POST" action="/start_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
                                     <button type="submit">Start</button>
@@ -199,6 +203,7 @@
                         document.getElementById('likes-' + campaignId).innerText = data.likes;
                         document.getElementById('comments-' + campaignId).innerText = data.comments;
                         document.getElementById('desired-comments-' + campaignId).innerText = data.desired_comments;
+                        document.getElementById('desired-likes-' + campaignId).innerText = data.desired_likes;
                     }
                 })
                 .catch(error => console.error('Error fetching campaign status:', error));
