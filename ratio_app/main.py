@@ -134,7 +134,6 @@ def upload_db():
     blob.upload_from_filename(db_file_path)
 
 def save_db_changes():
-    save_db_changes()
     upload_db()
 
 @app.before_request
