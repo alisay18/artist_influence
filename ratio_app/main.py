@@ -34,6 +34,10 @@ from flask_login import (
 from campaign import Campaign, YoutubeRatioCalc
 from jingle_smm import JingleSMM
 
+from google.cloud import storage
+
+
+
 load_dotenv()
 API_KEY = os.getenv("YOUTUBE_API_KEY")
 
@@ -47,11 +51,20 @@ logger.addHandler(handler)
 
 from flask_sqlalchemy import SQLAlchemy
 
+# Initialize GCP storage client
+storage_client = storage.Client()
+bucket_name = 'rich-phenomenon-428302-q5.appspot.com'
+bucket = storage_client.bucket(bucket_name)
+
+# Update SQLite database path
+db_blob_name = 'campaigns.db'
+db_file_path = f'/tmp/{db_blob_name}'
+
+
 # Initialize Flask app and SQLAlchemy
 app = Flask(__name__, template_folder="templates")
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    "sqlite:////tmp/campaigns.db"  # Use SQLite database
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_file_path}"
+app.config["SQLALCHEMY_ECHO"] = True  # Log SQL queries to the console
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.secret_key = (
     "your_secret_key"  # You should use a secure and random secret key for production
@@ -112,6 +125,23 @@ class User(UserMixin):
         self.username = username
         self.password = password
 
+def download_db():
+    blob = bucket.blob(db_blob_name)
+    blob.download_to_filename(db_file_path)
+
+def upload_db():
+    blob = bucket.blob(db_blob_name)
+    blob.upload_from_filename(db_file_path)
+
+def save_db_changes():
+    save_db_changes()
+    upload_db()
+
+@app.before_request
+def create_tables():
+    app.before_request_funcs[None].remove(create_tables)
+    download_db()
+    db.create_all()
 
 # User loader function for Flask-Login
 @login_manager.user_loader
@@ -158,7 +188,7 @@ def stop_campaign_thread(campaign_id):
             logger.info(f"Campaign {campaign_id} thread stopped")
         else:
             logger.info(f"Campaign {campaign_id} thread not found")
-    except Exception as e: 
+    except Exception as e:
         logger.error(f"Error stopping campaign {campaign_id} thread: {e}")
         return False
     return True
@@ -191,7 +221,7 @@ def stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel):
     # Delete all campaigns from the database
     try:
         num_deleted = db.session.query(CampaignModel).delete()
-        db.session.commit()
+        save_db_changes()
         logger.info(f"Deleted {num_deleted} campaigns from the database.")
     except Exception as e:
         db.session.rollback()
@@ -202,6 +232,49 @@ def stop_and_clear_all_campaigns(campaign_threads, db, CampaignModel):
     )
 
 
+def start_all_campaigns(campaign_threads, db, CampaignModel):
+    """
+    Starts all campaigns in the database.
+
+    Args:
+        campaign_threads (dict): Dictionary storing all active campaign threads.
+        db (SQLAlchemy): SQLAlchemy instance to interact with the database.
+        CampaignModel (db.Model): The Campaign model representing the campaigns table in the database.
+    """
+    logger.info("Starting all campaigns.")
+    try:
+        # Retrieve all campaigns from the database
+        all_campaigns = CampaignModel.query.all()
+
+        # Iterate over all campaigns and start them
+        for campaign_data in all_campaigns:
+            try:
+                rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
+                rc.get_views_likes_cmnts()
+                rc.get_video_title()
+                campaign = Campaign(
+                    campaign_data.to_dict(),
+                    rc,
+                    campaign_data.comments_sheet_url,
+                    campaign_data.wait_time,
+                )
+                campaign.data["Status"] = "Running"
+                campaign_thread = threading.Thread(
+                    target=campaign.run, args=(campaign.data["Views"],)
+                )
+                campaign_thread.start()
+                campaign_threads[campaign_data.campaign_id] = (campaign, campaign_thread)
+                campaign_data.status = "Running"
+                save_db_changes()
+                logger.info(f"Started campaign {campaign_data.campaign_id}")
+            except Exception as e:
+                logger.error(f"Error starting campaign {campaign_data.campaign_id}: {e}")
+
+        logger.info("All campaigns have been started.")
+        return True
+    except Exception as e:
+        logger.error(f"Error starting all campaigns: {e}")
+        return False
 @app.before_request
 def create_tables():
     # The following line will remove this handler, making it
@@ -304,7 +377,7 @@ def create_campaign():
                 views=views,
             )
             db.session.add(campaign_data)
-            db.session.commit()
+            save_db_changes()
 
             campaign = Campaign(campaign_data.to_dict(), rc, comments_sheet, wait_time)
             # Start the campaign in a new thread
@@ -354,7 +427,7 @@ def campaign_status(campaign_id):
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])
 @login_required
 def start_campaign(campaign_id):
-    try: 
+    try:
         logger.info(f"Starting campaign {campaign_id}")
         campaign_data = CampaignModel.query.get(campaign_id)
         if campaign_data and campaign_data.status == "Completed":
@@ -377,7 +450,7 @@ def start_campaign(campaign_id):
             campaign_thread.start()
             campaign_threads[campaign_id] = (campaign, campaign_thread)
             campaign_data.status = "Running"
-            db.session.commit()
+            save_db_changes()
         return redirect(url_for("index"))
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
@@ -390,7 +463,7 @@ def stop_campaign(campaign_id):
     logger.info(f"Stopping campaign {campaign_id}")
     campaign = CampaignModel.query.get(campaign_id)
     campaign.status = "Completed"
-    db.session.commit()
+    save_db_changes()
     campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
     # Stop the campaign
     if campaign:
@@ -429,12 +502,19 @@ def stop():
     campaign_threads.clear()
     # Clear the campaigns in the session
     db.session.query(CampaignModel).update({CampaignModel.status: "Completed"})
-    db.session.commit()
+    save_db_changes()
     logger.info("All campaigns stopped!")
     # Update the status of all campaigns in the session
     flash("All campaigns stopped!", "success")
     return redirect(url_for("index"))
 
+@app.route("/start_all_campaigns", methods=["POST"])
+@login_required
+def start_all():
+    start_all_campaigns(campaign_threads, db, CampaignModel)
+    logger.info("All campaigns have been started!")
+    flash("All campaigns have been started!", "success")
+    return redirect(url_for("index"))
 
 @app.route("/clear_all_campaigns", methods=["POST"])
 @login_required

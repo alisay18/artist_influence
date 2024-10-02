@@ -5,6 +5,7 @@ flask-sqlalchemy
 pandas
 google==3.0.0
 google-api-python-client
+google-cloud-storage
 pymongo
 pytest 
 pytest-flask
