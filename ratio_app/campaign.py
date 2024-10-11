@@ -263,6 +263,13 @@ class Campaign:
             logger.info(
                 f"Ordering total of {comments.shape[0]} comments for {self.video_id}"
             )
+            # Add the used comments to the used comments database
+            used_comments = pd.concat([used_comments, comments])
+            # Drop the used comments from the comments database
+            comments_db.drop(comments.index, inplace=True)
+            logger.info(f"Ordered comments: {response}")     
+            # Update the Google Sheet
+            self.mark_comments_as_used(self.comments_sheet_id, used_comments)
             # Drip comments over the interval
             interval_seconds = np.random.randint(
                 10800, 18000
@@ -289,13 +296,6 @@ class Campaign:
                 )
                 logger.info(f"Video ID: {self.video_id} Ordered comments: {response}")
                 # Sleep between sending batches of comments to simulate "drip" effect
-                # Add the used comments to the used comments database
-                used_comments = pd.concat([used_comments, comments])
-                # Drop the used comments from the comments database
-                comments_db.drop(comments.index, inplace=True)
-                logger.info(f"Ordered comments: {response}")
-                # Update the Google Sheet
-                self.mark_comments_as_used(self.comments_sheet_id, used_comments)
                 time.sleep(interval_seconds)
                 total_time += interval_seconds
         # send comments every 12 hours
