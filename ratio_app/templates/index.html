@@ -76,6 +76,20 @@
             width: 100%;
             margin-top: 20px;
         }
+        .table-container {
+            max-height: 1200px; /* Adjust as needed to control the scroll area */
+            overflow-y: auto; /* Enables vertical scrolling */
+        }
+
+        .sticky-table th {
+            position: sticky;
+            top: 0; /* Keeps the header at the top of the table when scrolling */
+            background-color: rgba(0,0,0, 0.95); /* Semi-transparent background */
+            backdrop-filter: blur(28px); /* Apply the blur effect */ 
+            -webkit-backdrop-filter: blur(10px); /* For Safari compatibility */
+            z-index: 10; /* Ensures the header stays on top of other content */
+            box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1); /* Optional: adds a subtle shadow for better visibility */
+        }
         th, td {
             padding: 8px;
             text-align: left;
@@ -145,22 +159,25 @@
                             <button type="submit">Clear all Campaigns (this action cannot be undone)</button>
                         </form>                    
                     </div>
-                    <table>
-                        <tr>
-                            <th>Video Title</th>
-                            <th>Video Link</th>
-                            <th>Video ID</th>
-                            <th>Genre</th>
-                            <th>Comments Sheet URL</th>
-                            <th>Wait Interval</th>
-                            <th>Status</th>
-                            <th>Likes</th>
-                            <th>Views</th>
-                            <th>Comments</th>
-                            <th>Desired Comments</th>
-                            <th>Desired Likes</th>
-                            <th>Actions</th>
-                        </tr>
+                    <div class="table-container">
+                    <table class="sticky-table">
+                        <thead>
+                            <tr>
+                                <th>Video Title</th>
+                                <th>Video Link</th>
+                                <th>Video ID</th>
+                                <th>Genre</th>
+                                <th>Comments Sheet URL</th>
+                                <th>Wait Interval</th>
+                                <th>Status</th>
+                                <th>Likes</th>
+                                <th>Views</th>
+                                <th>Comments</th>
+                                <th>Desired Comments</th>
+                                <th>Desired Likes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
                         {% for campaign in campaigns %}
                         <tr>
                             <td>{{ campaign['Video Title'] }}</td>
@@ -182,10 +199,14 @@
                                 <form method="POST" action="/stop_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
                                     <button type="submit">Stop</button>
                                 </form>
+                                <form method="POST" action="/delete_campaign/{{ campaign['Campaign ID']}}" style="display: inline;">
+                                    <button type="submit">Delete</button>
+                                </form>
                             </td>
                         </tr>
                         {% endfor %}
                     </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -211,7 +232,9 @@
         // Initialize SSE for each campaign
         {% for campaign in campaigns %}
             setInterval(() => {
+            if ("{{ campaign['Status'] }}" === "Running") {
                 fetchCampaignStatus("{{ campaign['Campaign ID'] }}")
+            }
             }, 5000);
         {% endfor %}
         </script>        

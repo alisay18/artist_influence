@@ -222,7 +222,7 @@ class Campaign:
             )
 
             logger.info(
-                f"Updated {result.get('updatedCells')} cells in the Google Sheet."
+                f"Updated {result.get('updatedCells')} cells in the Google Sheet for video ID: {self.video_id} spreadsheet ID: {spreadsheet_id}"
             )
 
         except Exception as e:
@@ -234,6 +234,7 @@ class Campaign:
     def order_comments(
         self, comments, last_views, min_views, comments_db, used_comments, total_time=0
     ):
+        response = None
         if (
             self.ratio_calculator.views - last_views >= min_views
             and self.ratio_calculator.comments < self.desired_comments
@@ -288,15 +289,15 @@ class Campaign:
                 )
                 logger.info(f"Video ID: {self.video_id} Ordered comments: {response}")
                 # Sleep between sending batches of comments to simulate "drip" effect
+                # Add the used comments to the used comments database
+                used_comments = pd.concat([used_comments, comments])
+                # Drop the used comments from the comments database
+                comments_db.drop(comments.index, inplace=True)
+                logger.info(f"Ordered comments: {response}")
+                # Update the Google Sheet
+                self.mark_comments_as_used(self.comments_sheet_id, used_comments)
                 time.sleep(interval_seconds)
                 total_time += interval_seconds
-            # Add the used comments to the used comments database
-            used_comments = pd.concat([used_comments, comments])
-            # Drop the used comments from the comments database
-            comments_db.drop(comments.index, inplace=True)
-            logger.info(f"Ordered comments: {response}")
-            # Update the Google Sheet
-            self.mark_comments_as_used(self.comments_sheet_id, used_comments)
         # send comments every 12 hours
         elif (
             self.ratio_calculator.comments < self.desired_comments
@@ -311,6 +312,7 @@ class Campaign:
                 "\r\n".join(comments.index[i : i + 5])
                 for i in range(0, len(comments), 5)
             ]
+            #TODO Check chunking procedure
             response = self.api.order(
                 {
                     "service": 440,
@@ -329,6 +331,7 @@ class Campaign:
                 f"Video ID: {self.video_id} Ordered comments: {response} for 12 hour interval"
             )
             total_time = 0
+        return total_time
     
     def order_likes(self, last_views, min_views, total_time):
         if self.ratio_calculator.views - last_views >= min_views and self.ratio_calculator.likes < self.desired_likes:
@@ -357,7 +360,6 @@ class Campaign:
             )
             logger.info(f"Video ID: {self.video_id} Ordered likes: {response}")
             # Sleep between sending batches of comments to simulate "drip" effect
-            time.sleep(10800)
             total_time += 10800
             logger.info(f"Ordered likes: {response}")
         # send likes every 12 hours
@@ -365,7 +367,7 @@ class Campaign:
             logger.info(
                 f"Video ID: {self.video_id} Ordering {self.desired_likes} likes for 12 hour interval"
             )
-            likes = 15
+            likes = np.random.randint(35, 65)
             response = self.api.order(
                 {
                     "service": 438,
@@ -375,6 +377,7 @@ class Campaign:
             )
             logger.info(f"Ordered likes: {response}")
             total_time = 0
+        return total_time
 
     def run(self, desired_views, campaign_data=None):
         """Run the campaign.
@@ -425,11 +428,13 @@ class Campaign:
             logger.info(
                 f"VideoID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
             )
-            self.order_comments(
+            total_time += self.order_comments(
                 comments_db, last_views, min_views, comments_db, used_comments, total_time
             )
 
-            self.order_likes(last_views,min_views, total_time)
+            total_time += self.order_likes(last_views,min_views, total_time)
+            if total_time > 43200:
+                total_time = 0
             self.ratio_calculator.get_views_likes_cmnts()
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)

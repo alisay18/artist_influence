@@ -148,6 +148,11 @@ def create_tables():
     app.before_request_funcs[None].remove(create_tables)
     download_db()
     db.create_all()
+    for campaign in CampaignModel.query.all():
+        logger.info(f"Checking campaign {campaign.campaign_id} status, {campaign.status}")
+        if campaign.status == "Running":
+            logger.info(f"Restarting campaign {campaign.video_id} due to server restart")
+            start_campaign_thread(campaign.campaign_id)
 
 # User loader function for Flask-Login
 @login_manager.user_loader
@@ -425,6 +430,25 @@ def campaign_status(campaign_id):
     finally:
         logger.info(f"Ending campaign status long polling for {campaign_id}")
 
+def start_campaign_thread(campaign_id):
+    campaign_data = CampaignModel.query.get(campaign_id)
+    rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
+    rc.get_views_likes_cmnts()
+    rc.get_video_title()
+    campaign = Campaign(
+        campaign_data.to_dict(),
+        rc,
+        campaign_data.comments_sheet_url,
+        campaign_data.wait_time,
+    )
+    campaign.data["Status"] = "Running"
+    campaign_thread = threading.Thread(
+        target=campaign.run, args=(campaign.data["Views"],)
+    )
+    campaign_thread.start()
+    campaign_threads[campaign_id] = (campaign, campaign_thread)
+    campaign_data.status = "Running"
+    save_db_changes()
 
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])
 @login_required
@@ -436,23 +460,7 @@ def start_campaign(campaign_id):
             # Stop the campaign if it is already running
             stop_campaign_thread(campaign_id)
             logger.info(f"Restarting campaign {campaign_id}")
-            rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
-            rc.get_views_likes_cmnts()
-            rc.get_video_title()
-            campaign = Campaign(
-                campaign_data.to_dict(),
-                rc,
-                campaign_data.comments_sheet_url,
-                campaign_data.wait_time,
-            )
-            campaign.data["Status"] = "Running"
-            campaign_thread = threading.Thread(
-                target=campaign.run, args=(campaign.data["Views"],)
-            )
-            campaign_thread.start()
-            campaign_threads[campaign_id] = (campaign, campaign_thread)
-            campaign_data.status = "Running"
-            save_db_changes()
+            start_campaign_thread(campaign_id)
         return redirect(url_for("index"))
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
@@ -489,6 +497,22 @@ def export():
     campaigns_df.to_csv(file_path, index=False)
     return send_file(file_path, as_attachment=True)
 
+@app.route("/delete_campaign/<campaign_id>", methods=["POST"])
+@login_required
+def delete_campaign(campaign_id):
+    campaign = CampaignModel.query.get(campaign_id)
+    if campaign:
+        db.session.delete(campaign)
+        if campaign_id in campaign_threads:
+            campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
+            if campaign_thread.is_alive():
+                campaign.stop()
+                thread = threading.Thread(target=stop_campaign_thread, args=(campaign_id,))
+                thread.start()
+            campaign_threads.pop(campaign_id, None)
+        save_db_changes()
+        return redirect(url_for("index"))
+    return redirect(url_for("index"))
 
 @app.route("/stop", methods=["POST"])
 @login_required
