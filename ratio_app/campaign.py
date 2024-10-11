@@ -177,6 +177,7 @@ class Campaign:
         self.num_used_comments = 0
         self.ratio_calculator: YoutubeRatioCalc = ratio_calculator
         self.wait_time = wait_time
+        self.total_time = 0
         self.stop_flag = threading.Event()  # Add a stop flag
 
     def get_comments(self):
@@ -189,6 +190,9 @@ class Campaign:
             self.num_used_comments = comments[comments["Used"] == "Used"].shape[0]
             # Remove comments that have already been used
             comments = comments[comments["Used"] != "Used"]
+            # Remove duplicate comments
+            comments = comments.drop_duplicates()
+            logger.info(f"Loaded {comments} comments from the Google Sheet.")
             logger.info(f"Loaded {comments.shape[0]} comments from the Google Sheet.")
             return comments
         else:
@@ -232,7 +236,7 @@ class Campaign:
         return [i for i in range(low, high + 1) if i % 5 == 0]
 
     def order_comments(
-        self, comments, last_views, min_views, comments_db, used_comments, total_time=0
+        self, comments, last_views, min_views, comments_db, used_comments
     ):
         response = None
         if (
@@ -297,11 +301,11 @@ class Campaign:
                 logger.info(f"Video ID: {self.video_id} Ordered comments: {response}")
                 # Sleep between sending batches of comments to simulate "drip" effect
                 time.sleep(interval_seconds)
-                total_time += interval_seconds
+                self.total_time += interval_seconds
         # send comments every 12 hours
         elif (
             self.ratio_calculator.comments < self.desired_comments
-            and total_time > 43200
+            and self.total_time > 43200
         ):
             logger.info(
                 f"Video ID: {self.video_id} Ordering {self.desired_comments} comments for 12 hour interval"
@@ -330,10 +334,9 @@ class Campaign:
             logger.info(
                 f"Video ID: {self.video_id} Ordered comments: {response} for 12 hour interval"
             )
-            total_time = 0
-        return total_time
+            self.total_time = 0
     
-    def order_likes(self, last_views, min_views, total_time):
+    def order_likes(self, last_views, min_views):
         if self.ratio_calculator.views - last_views >= min_views and self.ratio_calculator.likes < self.desired_likes:
             max_desired_likes = np.max(
                 [
@@ -360,10 +363,10 @@ class Campaign:
             )
             logger.info(f"Video ID: {self.video_id} Ordered likes: {response}")
             # Sleep between sending batches of comments to simulate "drip" effect
-            total_time += 10800
+            self.total_time += 10800
             logger.info(f"Ordered likes: {response}")
         # send likes every 12 hours
-        elif self.ratio_calculator.likes < self.desired_likes and total_time > 43200:
+        elif self.ratio_calculator.likes < self.desired_likes and self.total_time > 43200:
             logger.info(
                 f"Video ID: {self.video_id} Ordering {self.desired_likes} likes for 12 hour interval"
             )
@@ -376,8 +379,7 @@ class Campaign:
                 }
             )
             logger.info(f"Ordered likes: {response}")
-            total_time = 0
-        return total_time
+            self.total_time = 0
 
     def run(self, desired_views, campaign_data=None):
         """Run the campaign.
@@ -389,7 +391,6 @@ class Campaign:
         comments_db = self.get_comments()
         used_comments = pd.DataFrame(columns=["comments", "used"])
         min_views = 500
-        total_time = 0
         # Update the views, likes, and comments
         self.ratio_calculator.get_views_likes_cmnts()
         last_views = None
@@ -428,17 +429,15 @@ class Campaign:
             logger.info(
                 f"VideoID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
             )
-            total_time += self.order_comments(
-                comments_db, last_views, min_views, comments_db, used_comments, total_time
+            self.order_comments(
+                comments_db, last_views, min_views, comments_db, used_comments
             )
 
-            total_time += self.order_likes(last_views,min_views, total_time)
-            if total_time > 43200:
-                total_time = 0
+            self.order_likes(last_views,min_views)
             self.ratio_calculator.get_views_likes_cmnts()
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
-            total_time += self.wait_time
+            self.total_time += self.wait_time
             logger.info(
                 f"Video ID: {self.video_id} Sleeping for {self.wait_time} seconds"
             )
