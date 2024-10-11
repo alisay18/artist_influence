@@ -271,7 +271,6 @@ class Campaign:
             used_comments = pd.concat([used_comments, comments])
             # Drop the used comments from the comments database
             comments_db.drop(comments.index, inplace=True)
-            logger.info(f"Ordered comments: {response}")     
             # Update the Google Sheet
             self.mark_comments_as_used(self.comments_sheet_id, used_comments)
             # Drip comments over the interval
