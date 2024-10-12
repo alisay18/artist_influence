@@ -42,7 +42,6 @@ def load_data(file_path: str, dtype: dict = None):
     try:
         df = pd.read_csv(
             file_path,
-            index_col=0,
             dtype=dtype,
         )
     except Exception as e:
@@ -176,8 +175,11 @@ class Campaign:
         self.comments_sheet_id = comment_sheet.split("/")[-1]
         self.num_used_comments = 0
         self.ratio_calculator: YoutubeRatioCalc = ratio_calculator
+        self.comments_db = self.get_comments()
+        self.used_comments = pd.DataFrame(columns=["comments", "used"])
         self.wait_time = wait_time
         self.total_time = 0
+        self.interval_seconds = 10
         self.stop_flag = threading.Event()  # Add a stop flag
 
     def get_comments(self):
@@ -190,9 +192,7 @@ class Campaign:
             self.num_used_comments = comments[comments["Used"] == "Used"].shape[0]
             # Remove comments that have already been used
             comments = comments[comments["Used"] != "Used"]
-            # Remove duplicate comments
-            comments = comments.drop_duplicates()
-            logger.info(f"Loaded {comments} comments from the Google Sheet.")
+            comments = comments.drop_duplicates(subset=["Comments"], keep="first")
             logger.info(f"Loaded {comments.shape[0]} comments from the Google Sheet.")
             return comments
         else:
@@ -235,9 +235,53 @@ class Campaign:
     def _generate_multiples_of_5(self, low, high):
         return [i for i in range(low, high + 1) if i % 5 == 0]
 
-    def order_comments(
-        self, comments, last_views, min_views, comments_db, used_comments
-    ):
+    def order_comments(self, n=5, is_twelve_hour=False):
+        comments = self.comments_db.head(n=n)
+        response = ""
+        # Split comments into chunks of 5
+        comment_chunks = [
+            "\r\n".join(comments[i : i + 5]["Comments"].values.flatten())
+            for i in range(0, len(comments), 5)
+        ]
+        logger.info(
+            f"Video ID: {self.video_id}, Ordering total of {comments.shape[0]} comments for {self.video_id}"
+        )
+        self.used_comments = pd.concat([self.used_comments, comments])
+        # Drop the used comments from the comments database
+        self.comments_db.drop(comments.index, inplace=True)
+        logger.info(f"Video ID: {self.video_id}, Ordered comments: {response}")
+        # Update the Google Sheet by marking the comments as used
+        self.mark_comments_as_used(self.comments_sheet_id, self.used_comments)
+        for comment_chunk in comment_chunks:
+            # if comment_chunk is less than 5, skip
+            if len(comment_chunk.splitlines()) < 5:
+                # remove the comments from comments
+                self.comments_db = self.comments_db.drop(
+                    comments.index[comments["Comments"] == comment_chunk.splitlines()]
+                )
+                continue
+            if self.stop_flag.is_set():
+                break
+            logger.info(
+                f"Video ID: {self.video_id} Ordering {len(comment_chunk.splitlines())} comments"
+            )
+            # Sleep between sending batches of comments to simulate "drip" effect
+            response = self.api.order(
+                {
+                    "service": 440,
+                    "link": f"https://www.youtube.com/watch?v={self.video_id}",
+                    "comments": comment_chunk,
+                }
+            )
+            logger.info(f"Video ID: {self.video_id} Ordered comments: {response}")
+            if not is_twelve_hour:
+                self.interval_seconds = np.random.randint(10800, 18000)
+                # Adjust this interval as needed
+                time.sleep(self.interval_seconds)
+                self.total_time += self.interval_seconds
+        return response
+
+    def order_comments_wrapper(self, last_views, min_views):
         response = None
         if (
             self.ratio_calculator.views - last_views >= min_views
@@ -258,49 +302,9 @@ class Campaign:
             max_comments = self._generate_multiples_of_5(5, int(max_desired_comments))
             # Use the video delta to determine how many comments to order
             diff = np.random.choice(max_comments)
-            comments = comments_db.head(n=int(diff) if diff > 5 else 5)
-            # Split comments into chunks of 5
-            comment_chunks = [
-                "\r\n".join(comments.index[i : i + 5])
-                for i in range(0, len(comments), 5)
-            ]
-            logger.info(
-                f"Ordering total of {comments.shape[0]} comments for {self.video_id}"
-            )
-            # Add the used comments to the used comments database
-            used_comments = pd.concat([used_comments, comments])
-            # Drop the used comments from the comments database
-            comments_db.drop(comments.index, inplace=True)
             # Update the Google Sheet
-            self.mark_comments_as_used(self.comments_sheet_id, used_comments)
+            self.order_comments(diff)
             # Drip comments over the interval
-            interval_seconds = np.random.randint(
-                10800, 18000
-            )  # Adjust this interval as needed
-            for comment_chunk in comment_chunks:
-                # if comment_chunk is less than 5, skip
-                if len(comment_chunk.splitlines()) < 5:
-                    # remove the comments from comments
-                    comments = comments.drop(
-                        comments.index[: len(comment_chunk.splitlines())]
-                    )
-                    continue
-                if self.stop_flag.is_set():
-                    break
-                logger.info(
-                    f"Video ID: {self.video_id} Ordering {len(comment_chunk.splitlines())} comments"
-                )
-                response = self.api.order(
-                    {
-                        "service": 440,
-                        "link": f"https://www.youtube.com/watch?v={self.video_id}",
-                        "comments": comment_chunk,
-                    }
-                )
-                logger.info(f"Video ID: {self.video_id} Ordered comments: {response}")
-                # Sleep between sending batches of comments to simulate "drip" effect
-                time.sleep(interval_seconds)
-                self.total_time += interval_seconds
         # send comments every 12 hours
         elif (
             self.ratio_calculator.comments < self.desired_comments
@@ -309,34 +313,17 @@ class Campaign:
             logger.info(
                 f"Video ID: {self.video_id} Ordering {self.desired_comments} comments for 12 hour interval"
             )
-            comments = comments_db.head(n=5)
-            # Split comments into chunks of 5
-            comment_chunks = [
-                "\r\n".join(comments.index[i : i + 5])
-                for i in range(0, len(comments), 5)
-            ]
-            #TODO Check chunking procedure
-            response = self.api.order(
-                {
-                    "service": 440,
-                    "link": f"https://www.youtube.com/watch?v={self.video_id}",
-                    "comments": comment_chunks[0],
-                }
-            )
-            # Add the used comments to the used comments database
-            used_comments = pd.concat([used_comments, comments])
-            # Drop the used comments from the comments database
-            comments_db.drop(comments.index, inplace=True)
-            logger.info(f"Ordered comments: {response}")
-            # Update the Google Sheet
-            self.mark_comments_as_used(self.comments_sheet_id, used_comments)
+            response = self.order_comments(is_twelve_hour=True)
             logger.info(
                 f"Video ID: {self.video_id} Ordered comments: {response} for 12 hour interval"
             )
             self.total_time = 0
-    
+
     def order_likes(self, last_views, min_views):
-        if self.ratio_calculator.views - last_views >= min_views and self.ratio_calculator.likes < self.desired_likes:
+        if (
+            self.ratio_calculator.views - last_views >= min_views
+            and self.ratio_calculator.likes < self.desired_likes
+        ):
             max_desired_likes = np.max(
                 [
                     np.floor(
@@ -349,10 +336,10 @@ class Campaign:
                 ]
             )
             # Use the video delta to determine how many comments to order
-            likes = np.random.randint(10, int(max_desired_likes) if max_desired_likes > 10 else 10)
-            logger.info(
-                f"Ordering total of {likes} likes for {self.video_id}"
+            likes = np.random.randint(
+                10, int(max_desired_likes) if max_desired_likes > 10 else 10
             )
+            logger.info(f"Ordering total of {likes} likes for {self.video_id}")
             response = self.api.order(
                 {
                     "service": 438,
@@ -365,7 +352,9 @@ class Campaign:
             self.total_time += 10800
             logger.info(f"Ordered likes: {response}")
         # send likes every 12 hours
-        elif self.ratio_calculator.likes < self.desired_likes and self.total_time > 43200:
+        elif (
+            self.ratio_calculator.likes < self.desired_likes and self.total_time > 43200
+        ):
             logger.info(
                 f"Video ID: {self.video_id} Ordering {self.desired_likes} likes for 12 hour interval"
             )
@@ -380,15 +369,13 @@ class Campaign:
             logger.info(f"Ordered likes: {response}")
             self.total_time = 0
 
-    def run(self, desired_views, campaign_data=None):
+    def run(self, desired_views):
         """Run the campaign.
 
         Args:
             desired_views (int): The desired number of views for the video.
         """
         logger.info("Running campaign for video ID: %s", self.video_id)
-        comments_db = self.get_comments()
-        used_comments = pd.DataFrame(columns=["comments", "used"])
         min_views = 500
         # Update the views, likes, and comments
         self.ratio_calculator.get_views_likes_cmnts()
@@ -400,12 +387,12 @@ class Campaign:
                     "Campaign completed or stopped for video ID: %s", self.video_id
                 )
                 break
-            if comments_db is None:
+            if self.comments_db is None:
                 logger.error("No comments found")
                 self.stop()
                 break
             # If we ran out of comments to add, break the loop
-            if comments_db.empty:
+            if self.comments_db.empty:
                 logger.error("No comments left to add")
                 self.stop()
                 break
@@ -426,13 +413,10 @@ class Campaign:
                 last_views = self.ratio_calculator.views
             # If the video has less than the desired comments, order more comments
             logger.info(
-                f"VideoID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
+                f"Video ID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views}"
             )
-            self.order_comments(
-                comments_db, last_views, min_views, comments_db, used_comments
-            )
-
-            self.order_likes(last_views,min_views)
+            self.order_comments_wrapper(last_views, min_views)
+            self.order_likes(last_views, min_views)
             self.ratio_calculator.get_views_likes_cmnts()
             last_views = int(self.ratio_calculator.views)
             time.sleep(self.wait_time)
@@ -440,6 +424,59 @@ class Campaign:
             logger.info(
                 f"Video ID: {self.video_id} Sleeping for {self.wait_time} seconds"
             )
+
+    def run_likes_only(self, desired_views):
+        """Run the campaign to order likes only.
+
+        Args:
+            desired_views (int): The desired number of views for the video.
+        """
+        try:
+            logger.info("Running campaign for video ID: %s", self.video_id)
+            min_views = 500
+            # Update the views, likes, and comments
+            self.ratio_calculator.get_views_likes_cmnts()
+            last_views = None
+            while not self.stop_flag.is_set():
+                # Update the views, likes, and comments
+                self.ratio_calculator.get_views_likes_cmnts()
+                self.desired_comments, self.desired_likes = (
+                    self.ratio_calculator.desired_views_likes(
+                        self.genre, desired_views=desired_views
+                    )
+                )
+                # Check the status of the campaign
+                if self.data["Status"] != "Running":
+                    logger.info(
+                        "Campaign completed or stopped for video ID: %s", self.video_id
+                    )
+                    break
+
+                if self.desired_likes <= self.ratio_calculator.likes:
+                    logger.info(
+                        f"Video ID: {self.video_id} has reached desired likes: {self.desired_likes}"
+                    )
+                    self.stop()
+                    break
+                logger.info(
+                    f"Video ID: {self.video_id}: {self.ratio_calculator.likes}, Desired likes: {self.desired_likes} Likes Only"
+                )
+                if not last_views:
+                    last_views = self.ratio_calculator.views
+                # If the video has less than the desired comments, order more comments
+                logger.info(
+                    f"Video ID: {self.video_id} Current views: {self.ratio_calculator.views}, Last views: {last_views} Likes Only"
+                )
+                self.order_likes(last_views, min_views)
+                self.ratio_calculator.get_views_likes_cmnts()
+                last_views = int(self.ratio_calculator.views)
+                time.sleep(self.wait_time)
+                logger.info(
+                    f"Video ID: {self.video_id} Sleeping for {self.wait_time} seconds")
+        except Exception as e:
+            logger.error(f"Error running likes only campaign: {e}")
+            raise e
+            
 
     def stop(self):
         logger.info("Stopping campaign for video ID: %s", self.video_id)

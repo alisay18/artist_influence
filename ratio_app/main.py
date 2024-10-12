@@ -9,37 +9,17 @@ import uuid
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from flask import (
-    Flask,
-    flash,
-    jsonify,
-    redirect,
-    render_template,
-    request,
-    send_file,
-    send_from_directory,
-    session,
-    url_for,
-)
+from flask import (Flask, flash, jsonify, redirect, render_template, request,
+                   send_file, send_from_directory, session, url_for)
 from flask_bcrypt import Bcrypt
-from flask_login import (
-    LoginManager,
-    UserMixin,
-    current_user,
-    login_required,
-    login_user,
-    logout_user,
-)
-
+from flask_login import (LoginManager, UserMixin, current_user, login_required,
+                         login_user, logout_user)
 from flask_sqlalchemy import SQLAlchemy
+from google.cloud import storage
 from sqlalchemy import create_engine
 
 from campaign import Campaign, YoutubeRatioCalc
 from jingle_smm import JingleSMM
-
-from google.cloud import storage
-
-
 
 load_dotenv()
 API_KEY = os.getenv("YOUTUBE_API_KEY")
@@ -54,12 +34,12 @@ logger.addHandler(handler)
 
 # Initialize GCP storage client
 storage_client = storage.Client()
-bucket_name = 'rich-phenomenon-428302-q5.appspot.com'
+bucket_name = "rich-phenomenon-428302-q5.appspot.com"
 bucket = storage_client.bucket(bucket_name)
 
 # Update SQLite database path
-db_blob_name = 'campaigns.db'
-db_file_path = f'/tmp/{db_blob_name}'
+db_blob_name = "campaigns.db"
+db_file_path = f"/tmp/{db_blob_name}"
 
 
 # Initialize Flask app and SQLAlchemy
@@ -114,7 +94,7 @@ class CampaignModel(db.Model):
             "Comments": self.comments,
             "Views": self.views,
             "Desired Comments": self.desired_comments,
-            "Desired Likes": self.desired_likes
+            "Desired Likes": self.desired_likes,
         }
 
 
@@ -128,20 +108,24 @@ class User(UserMixin):
         self.username = username
         self.password = password
 
+
 def download_db():
     blob = bucket.blob(db_blob_name)
     blob.download_to_filename(db_file_path)
     if not os.path.exists(db_file_path):
-        open(db_file_path, 'w').close()
+        open(db_file_path, "w").close()
+
 
 def upload_db():
     blob = bucket.blob(db_blob_name)
     blob.upload_from_filename(db_file_path)
-    print(f'File {db_blob_name} uploaded to {bucket_name}.')
+    print(f"File {db_blob_name} uploaded to {bucket_name}.")
+
 
 def save_db_changes():
     db.session.commit()
     upload_db()
+
 
 @app.before_request
 def create_tables():
@@ -149,10 +133,15 @@ def create_tables():
     download_db()
     db.create_all()
     for campaign in CampaignModel.query.all():
-        logger.info(f"Checking campaign {campaign.campaign_id} status, {campaign.status}")
+        logger.info(
+            f"Checking campaign {campaign.campaign_id} status, {campaign.status}"
+        )
         if campaign.status == "Running":
-            logger.info(f"Restarting campaign {campaign.video_id} due to server restart")
+            logger.info(
+                f"Restarting campaign {campaign.video_id} due to server restart"
+            )
             start_campaign_thread(campaign.campaign_id)
+
 
 # User loader function for Flask-Login
 @login_manager.user_loader
@@ -274,12 +263,17 @@ def start_all_campaigns(campaign_threads, CampaignModel):
                     target=campaign.run, args=(campaign.data["Views"],)
                 )
                 campaign_thread.start()
-                campaign_threads[campaign_data.campaign_id] = (campaign, campaign_thread)
+                campaign_threads[campaign_data.campaign_id] = (
+                    campaign,
+                    campaign_thread,
+                )
                 campaign_data.status = "Running"
                 save_db_changes()
                 logger.info(f"Started campaign {campaign_data.campaign_id}")
             except Exception as e:
-                logger.error(f"Error starting campaign {campaign_data.campaign_id}: {e}")
+                logger.error(
+                    f"Error starting campaign {campaign_data.campaign_id}: {e}"
+                )
 
         logger.info("All campaigns have been started.")
         return True
@@ -402,7 +396,7 @@ def create_campaign():
 @login_required
 def campaign_status(campaign_id):
     campaign, _ = campaign_threads.get(campaign_id, (None, None))
-    logger.info(f"Starting campaign status long polling for {campaign_id}")
+    logger.debug(f"Starting campaign status long polling for {campaign_id}")
     try:
         if campaign:
             data = {
@@ -419,8 +413,8 @@ def campaign_status(campaign_id):
                     np.floor(campaign.desired_likes) if campaign.desired_likes else 0
                 ),
             }
-            logger.info(f"Video ID: {campaign.data['Video ID']}," f"Data: {data}")
-            logger.info(f"Data: {data}")
+            logger.debug(f"Video ID: {campaign.data['Video ID']}," f"Data: {data}")
+            logger.debug(f"Data: {data}")
             return jsonify(data)
         else:
             return jsonify({"error": "Campaign not found"}), 404
@@ -428,7 +422,8 @@ def campaign_status(campaign_id):
         logger.error(f"An error occurred: {str(e)}")
         return jsonify({"error": str(e)}), 500
     finally:
-        logger.info(f"Ending campaign status long polling for {campaign_id}")
+        logger.debug(f"Ending campaign status long polling for {campaign_id}")
+
 
 def start_campaign_thread(campaign_id):
     campaign_data = CampaignModel.query.get(campaign_id)
@@ -449,6 +444,33 @@ def start_campaign_thread(campaign_id):
     campaign_threads[campaign_id] = (campaign, campaign_thread)
     campaign_data.status = "Running"
     save_db_changes()
+
+@app.route("/run_likes_only/<campaign_id>", methods=["POST"])
+@login_required
+def run_likes_only(campaign_id):
+    try: 
+        campaign_data = CampaignModel.query.get(campaign_id)
+        rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
+        rc.get_views_likes_cmnts()
+        rc.get_video_title()
+        campaign = Campaign(
+            campaign_data.to_dict(),
+            rc,
+            campaign_data.comments_sheet_url,
+            campaign_data.wait_time,
+        )
+        campaign.data["Status"] = "Running"
+        campaign_thread = threading.Thread(
+            target=campaign.run_likes_only, args=(campaign.data["Views"],)
+        )
+        campaign_thread.start()
+        campaign_threads[campaign_id] = (campaign, campaign_thread)
+        campaign_data.status = "Running"
+        save_db_changes()
+        return redirect(url_for("index"))
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        return redirect(url_for("index"))
 
 @app.route("/start_campaign/<campaign_id>", methods=["POST"])
 @login_required
@@ -486,7 +508,6 @@ def stop_campaign(campaign_id):
     campaign_threads.pop(campaign_id, None)
     return redirect(url_for("index"))
 
-
 @app.route("/export_campaigns", methods=["GET"])
 @login_required
 def export():
@@ -496,6 +517,7 @@ def export():
     file_path = "campaigns_report.csv"
     campaigns_df.to_csv(file_path, index=False)
     return send_file(file_path, as_attachment=True)
+
 
 @app.route("/delete_campaign/<campaign_id>", methods=["POST"])
 @login_required
@@ -507,12 +529,15 @@ def delete_campaign(campaign_id):
             campaign, campaign_thread = campaign_threads.get(campaign_id, (None, None))
             if campaign_thread.is_alive():
                 campaign.stop()
-                thread = threading.Thread(target=stop_campaign_thread, args=(campaign_id,))
+                thread = threading.Thread(
+                    target=stop_campaign_thread, args=(campaign_id,)
+                )
                 thread.start()
             campaign_threads.pop(campaign_id, None)
         save_db_changes()
         return redirect(url_for("index"))
     return redirect(url_for("index"))
+
 
 @app.route("/stop", methods=["POST"])
 @login_required
@@ -534,6 +559,7 @@ def stop():
     flash("All campaigns stopped!", "success")
     return redirect(url_for("index"))
 
+
 @app.route("/start_all_campaigns", methods=["POST"])
 @login_required
 def start_all():
@@ -541,6 +567,7 @@ def start_all():
     logger.info("All campaigns have been started!")
     flash("All campaigns have been started!", "success")
     return redirect(url_for("index"))
+
 
 @app.route("/clear_all_campaigns", methods=["POST"])
 @login_required
