@@ -268,7 +268,7 @@ class Campaign:
             # Sleep between sending batches of comments to simulate "drip" effect
             response = self.api.order(
                 {
-                    "service": 1377,
+                    "service": 3720,
                     "link": f"https://www.youtube.com/watch?v={self.video_id}",
                     "comments": comment_chunk,
                 }
