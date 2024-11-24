@@ -232,16 +232,16 @@ class Campaign:
         except Exception as e:
             logger.error(f"Error updating the Google Sheet: {e}")
 
-    def _generate_multiples_of_5(self, low, high):
-        return [i for i in range(low, high + 1) if i % 5 == 0]
+    def _generate_multiples_of_10(self, low, high):
+        return [i for i in range(low, high + 1) if i % 10 == 0]
 
-    def order_comments(self, n=5, is_twelve_hour=False):
+    def order_comments(self, n=10, is_twelve_hour=False):
         comments = self.comments_db.head(n=n)
         response = ""
-        # Split comments into chunks of 5
+        # Split comments into chunks of 10
         comment_chunks = [
-            "\r\n".join(comments[i : i + 5]["Comments"].values.flatten())
-            for i in range(0, len(comments), 5)
+            "\r\n".join(comments[i : i + 10]["Comments"].values.flatten())
+            for i in range(0, len(comments), 10)
         ]
         logger.info(
             f"Video ID: {self.video_id}, Ordering total of {comments.shape[0]} comments for {self.video_id}"
@@ -254,7 +254,7 @@ class Campaign:
         self.mark_comments_as_used(self.comments_sheet_id, self.used_comments)
         for comment_chunk in comment_chunks:
             # if comment_chunk is less than 5, skip
-            if len(comment_chunk.splitlines()) < 5:
+            if len(comment_chunk.splitlines()) < 10:
                 # remove the comments from comments
                 self.comments_db = self.comments_db.drop(
                     comments.index[comments["Comments"] == comment_chunk.splitlines()]
@@ -268,7 +268,7 @@ class Campaign:
             # Sleep between sending batches of comments to simulate "drip" effect
             response = self.api.order(
                 {
-                    "service": 3718,
+                    "service": 1377,
                     "link": f"https://www.youtube.com/watch?v={self.video_id}",
                     "comments": comment_chunk,
                 }
@@ -296,10 +296,10 @@ class Campaign:
                             * self.damper
                         )
                     ),
-                    5,
+                    10,
                 ]
             )
-            max_comments = self._generate_multiples_of_5(5, int(max_desired_comments))
+            max_comments = self._generate_multiples_of_10(10, int(max_desired_comments))
             # Use the video delta to determine how many comments to order
             diff = np.random.choice(max_comments)
             # Update the Google Sheet

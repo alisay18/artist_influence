@@ -449,25 +449,11 @@ def start_campaign_thread(campaign_id):
 @login_required
 def run_likes_only(campaign_id):
     try: 
+        # Get the campaign data
         campaign_data = CampaignModel.query.get(campaign_id)
-        rc = YoutubeRatioCalc(API_KEY, campaign_data.video_id)
-        rc.get_views_likes_cmnts()
-        rc.get_video_title()
-        campaign = Campaign(
-            campaign_data.to_dict(),
-            rc,
-            campaign_data.comments_sheet_url,
-            campaign_data.wait_time,
-        )
-        campaign.data["Status"] = "Running"
-        campaign_thread = threading.Thread(
-            target=campaign.run_likes_only, args=(campaign.data["Views"],)
-        )
-        campaign_thread.start()
-        campaign_threads[campaign_id] = (campaign, campaign_thread)
-        campaign_data.status = "Running"
-        save_db_changes()
-        return redirect(url_for("index"))
+        if campaign_data:
+            # Pass "likes only" as the service to process_campaign
+            status, order_id = process_campaign(campaign_data.desired_likes, campaign_data.video_id, service=440)
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         return redirect(url_for("index"))
