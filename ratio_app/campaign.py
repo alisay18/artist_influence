@@ -257,10 +257,9 @@ class Campaign:
         for comment_chunk in comment_chunks:
             # if comment_chunk is less than 5, skip
             if len(comment_chunk.splitlines()) < 10:
-                # remove the comments from comments
-                self.comments_db = self.comments_db.drop(
-                    comments.index[comments["Comments"] == comment_chunk.splitlines()]
-                )
+                # remove the comments from comments_db that are in this chunk
+                chunk_comments = set(comment_chunk.splitlines())
+                self.comments_db = self.comments_db[~self.comments_db["Comments"].isin(chunk_comments)]
                 continue
             if self.stop_flag.is_set():
                 break
