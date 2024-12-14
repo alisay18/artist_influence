@@ -181,6 +181,8 @@ class Campaign:
         self.total_time = 0
         self.interval_seconds = 10
         self.stop_flag = threading.Event()  # Add a stop flag
+        self.desired_comments = 0
+        self.desired_likes = 0
 
     def get_comments(self):
         if self.comments_sheet:
